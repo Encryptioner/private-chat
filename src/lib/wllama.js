@@ -1,4 +1,4 @@
-import { Wllama } from "@wllama/wllama/esm/wllama";
+import { Wllama } from "@wllama/wllama/esm";
 import { Template } from "@huggingface/jinja";
 
 import wllamaSingle from "@wllama/wllama/esm/single-thread/wllama.wasm?url";
@@ -15,37 +15,26 @@ export const CHAT_ROLE = Object.freeze({
 const isLocalHost = ["localhost", "0.0.0.0", "127.0.0.1"].includes(window.location.hostname);
 
 export const PRESET_MODELS = {
-  // https://huggingface.co/lmstudio-community/SmolLM2-360M-Instruct-GGUF
-  "SmolLM2 (360M)": {
-    name: "SmolLM2 (360M)",
+  "Gemma 3 (1B)": {
+    name: "Gemma 3 (1B)",
     url: isLocalHost
-      ? "/models/SmolLM2-360M-Instruct-Q4_K_M.gguf"
-      : "https://huggingface.co/lmstudio-community/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf",
-    license: "https://huggingface.co/HuggingFaceTB/SmolLM2-360M#license",
-    description: "Higher quality and more accurate than the 135M version",
+      ? `${window.location.origin}/models/gemma-3-1b-it-Q4_K_M.gguf`
+      : "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
+    license: "https://deepmind.google/models/gemma/gemma-3",
+    description: "Gemma is a lightweight, family of models from Google built on Gemini technology.",
   },
-  // https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
-  "Qwen2.5 (0.5B)": {
-    name: "Qwen2.5 (0.5B)",
-    url: "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf",
-    license: "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/blob/main/LICENSE",
-    description: "The 0.5B version of Qwen2.5",
+  "Qwen 3 (0.6B)": {
+    name: "Qwen 3 (0.6B)",
+    url: "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf",
+    license: "https://qwenlm.github.io/",
+    description: "The 0.6B version of Qwen 3",
   },
-  // https://huggingface.co/hugging-quants/Llama-3.2-1B-Instruct-Q4_K_M-GGUF
   "Llama 3.2 (1B)": {
     name: "Llama 3.2 (1B)",
     url: "https://huggingface.co/hugging-quants/Llama-3.2-1B-Instruct-Q4_K_M-GGUF/resolve/main/llama-3.2-1b-instruct-q4_k_m.gguf",
     license: "https://raw.githubusercontent.com/meta-llama/llama-models/refs/heads/main/models/llama3_2/LICENSE",
     description: "The 1B version of The Meta Llama 3.2 collection.",
   },
-  // https://huggingface.co/collections/tiiuae/falcon3-67605ae03578be86e4e87026
-  "Falcon3 (1B)": {
-    name: "Falcon3 (1B)",
-    url: "https://huggingface.co/tiiuae/Falcon3-1B-Instruct-GGUF/resolve/main/Falcon3-1B-Instruct-q4_k_m.gguf",
-    license: "https://falconllm.tii.ae/terms-and-conditions.html",
-    description: "The 1B version of Falcon3 family of Open Foundation Models",
-  },
-  // https://huggingface.co/collections/tiiuae/falcon3-67605ae03578be86e4e87026
   "Falcon3 (1B)": {
     name: "Falcon3 (1B)",
     url: "https://huggingface.co/tiiuae/Falcon3-1B-Instruct-GGUF/resolve/main/Falcon3-1B-Instruct-q4_k_m.gguf",
@@ -57,7 +46,7 @@ export const PRESET_MODELS = {
     url: "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-1.5B-GGUF/resolve/main/DeepSeek-R1-Distill-Qwen-1.5B-Q4_K_M.gguf",
     license: "https://huggingface.co/deepseek-ai/DeepSeek-R1#7-license",
     description: "The 1.5B version of Deepseek R1",
-  }
+  },
 };
 
 export const formatChat = async (wllamaInstance, messages) => {

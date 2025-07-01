@@ -6,9 +6,9 @@ const fetch = require("node-fetch");
 const path = require("path");
 const fs = require("fs");
 
-const fileName = "SmolLM2-360M-Instruct-Q4_K_M.gguf";
+const fileName = "gemma-3-1b-it-Q4_K_M.gguf";
 
-const fileUrl = `https://huggingface.co/lmstudio-community/SmolLM2-360M-Instruct-GGUF/resolve/main/${fileName}`;
+const fileUrl = `https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/${fileName}`;
 const destination = path.join(__dirname, `public/models/${fileName}`);
 // check if file exists
 if (fs.existsSync(destination)) {
