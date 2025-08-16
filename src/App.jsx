@@ -115,7 +115,7 @@ function App() {
       { role: ROLE.user, content: prompt.trim(), id: messageIdGenerator.next().value },
     ]);
     await wllama.createCompletion(formattedChat, {
-      nPredict: 512,
+      nPredict: 8096,
       sampling: { temp: 0.5, penalty_repeat: 1.3 },
       onNewToken,
     });
@@ -215,12 +215,24 @@ function App() {
               <ScrollArea type="hover" scrollbars="vertical" className="messages-container" ref={messagesContainerRef}>
                 {messages.map(({ content, role, id }, index) => {
                   const isLastMessage = index === messages.length - 1;
+                  const [reasoning, conclusion = " "] = content.startsWith("<think>")
+                    ? content.split("</think>")
+                    : ["", content];
                   return (
                     <Box key={id} pl={role === "user" ? "9" : 0} pr="3">
                       <Callout.Root {...getCalloutProps(role)}>
                         <Callout.Text size="3" asChild>
                           <div>
-                            {content !== ELLIPSIS && <Markdown>{content}</Markdown>}
+                            {content !== ELLIPSIS && (
+                              <>
+                                {reasoning && (
+                                  <Text as="div" size="1" color="gray" mb="4">
+                                    <i>{reasoning.split("<think>")[1] || ""}</i>
+                                  </Text>
+                                )}
+                                <Markdown>{conclusion}</Markdown>
+                              </>
+                            )}
                             {role === ROLE.assistant &&
                               (isLastMessage && isGenerating ? null : (
                                 <Flex py="3" gap="4">
