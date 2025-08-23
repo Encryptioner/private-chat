@@ -14,7 +14,7 @@
     "@heroicons/react": "^2.2.0",
     "@huggingface/jinja": "^0.3.1",
     "@radix-ui/themes": "^3.1.6",
-    "@wllama/wllama": "2.3.2",
+    "@wllama/wllama": "2.3.4",
     "node-fetch": "^2.7.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
