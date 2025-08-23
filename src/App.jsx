@@ -109,7 +109,7 @@ function App() {
     const onNewToken = streamMessages(prompt);
     setIsGenerating(true);
     if (!isReady) await loadModel();
-    const latestMessages = [...messages].slice(-3);
+    const latestMessages = [...messages].slice(-4);
     const formattedChat = await formatChat(wllama, [
       ...latestMessages,
       { role: ROLE.user, content: prompt.trim(), id: messageIdGenerator.next().value },
