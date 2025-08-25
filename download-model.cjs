@@ -6,9 +6,9 @@ const fetch = require("node-fetch");
 const path = require("path");
 const fs = require("fs");
 
-const fileName = "gemma-3-270m-it-Q8_0.gguf";
+const fileName = "LFM2-700M-Q4_K_M.gguf";
 
-const fileUrl = `https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/${fileName}`;
+const fileUrl = `https://huggingface.co/unsloth/LFM2-700M-GGUF/resolve/main/${fileName}`;
 const destination = path.join(__dirname, `public/models/${fileName}`);
 // check if file exists
 if (fs.existsSync(destination)) {
