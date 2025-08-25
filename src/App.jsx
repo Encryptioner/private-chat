@@ -5,7 +5,18 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CHAT_ROLE as ROLE, formatChat, getWllamaInstance, PRESET_MODELS } from "./lib/wllama";
-import { Box, Callout, Container, DropdownMenu, Flex, Link, ScrollArea, Text, TextField } from "@radix-ui/themes";
+import {
+  Box,
+  Callout,
+  Container,
+  DropdownMenu,
+  Flex,
+  Link,
+  ScrollArea,
+  Text,
+  TextField,
+  Tooltip,
+} from "@radix-ui/themes";
 import { ArrowRightIcon, DocumentDuplicateIcon, PencilSquareIcon, SpeakerWaveIcon } from "@heroicons/react/24/outline";
 import { StopCircleIcon } from "@heroicons/react/24/solid";
 import Markdown from "./components/Markdown";
@@ -16,7 +27,7 @@ import Dropdown from "./components/Dropdown";
 import IconButton from "./components/IconButton";
 
 const ELLIPSIS = "...";
-const DEFAULT_MODEL_ID = Object.keys(PRESET_MODELS)[0];
+const DEFAULT_MODEL_ID = Object.values(PRESET_MODELS).find((m) => m.default)?.name || Object.keys(PRESET_MODELS)[0];
 
 const preventClickAction = (e) => e.preventDefault();
 // eslint-disable-next-line no-console
@@ -111,12 +122,16 @@ function App() {
     if (!isReady) await loadModel();
     const latestMessages = [...messages].slice(-4);
     const formattedChat = await formatChat(wllama, [
+      {
+        role: ROLE.system,
+        content: "You are a helpful assistant. Keep responses as concise as possible. Avoid long explanations.",
+      },
       ...latestMessages,
       { role: ROLE.user, content: prompt.trim(), id: messageIdGenerator.next().value },
     ]);
     await wllama.createCompletion(formattedChat, {
-      nPredict: 8096,
-      sampling: { temp: 0.5, penalty_repeat: 1.3 },
+      nPredict: 1024,
+      sampling: { temp: 0.6, penalty_repeat: 1.5 },
       onNewToken,
     });
     setIsGenerating(false);
@@ -161,7 +176,7 @@ function App() {
   const shouldDisableSubmit = isBusy || prompt.trim().length === 0;
   const loadedSize = loadingProgress.loaded || 0;
   const totalSize = loadingProgress.total || 100;
-  const loadingProgressDisplayString = `${Math.floor((loadedSize / totalSize) * 100)}%`;
+  const loadingProgressDisplayString = `${(Math.floor((loadedSize / totalSize) * 10000) / 100).toFixed(2)}%`;
   const modelSizeDisplayString = totalSize ? `(${Math.ceil(totalSize / 1024 / 1024)}MB)` : "";
 
   return (
@@ -175,13 +190,11 @@ function App() {
               </IconButton>
               <Dropdown label={selectedModel.name}>
                 {Object.values(PRESET_MODELS).map(({ name, description }) => (
-                  <DropdownMenu.Item
-                    key={name}
-                    disabled={name === selectedModel.name}
-                    title={description}
-                    onClick={getMenuOptionHandler(name)}>
-                    {name}
-                  </DropdownMenu.Item>
+                  <Tooltip content={description} side="right" key={name}>
+                    <DropdownMenu.Item disabled={name === selectedModel.name} onClick={getMenuOptionHandler(name)}>
+                      {name}
+                    </DropdownMenu.Item>
+                  </Tooltip>
                 ))}
                 {localModelFiles.length > 0 && <DropdownMenu.Item disabled>{selectedModel.name}</DropdownMenu.Item>}
                 <DropdownMenu.Separator />
