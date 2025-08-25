@@ -72,7 +72,10 @@ export const formatChat = async (wllamaInstance, messages) => {
 };
 
 export const getWllamaInstance = () =>
-  new Wllama({
-    "single-thread/wllama.wasm": wllamaSingle,
-    "multi-thread/wllama.wasm": wllamaMulti,
-  });
+  new Wllama(
+    {
+      "single-thread/wllama.wasm": wllamaSingle,
+      "multi-thread/wllama.wasm": wllamaMulti,
+    },
+    { suppressNativeLog: true }
+  );
