@@ -1,9 +1,8 @@
 /**
  * Service Worker for caching application shell, runtime resources, and model files.
  */
-const VERSION = "v1.0.0";
-const APP_SHELL_CACHE = `app-shell-${VERSION}`;
-const RUNTIME_CACHE = `runtime-${VERSION}`;
+const VERSION = "v1.0.4";
+const STATIC_CACHE = `static-${VERSION}`;
 const MODEL_CACHE = `models-${VERSION}`;
 
 const CORE_ASSETS = ["/", "/index.html", "/favicon.svg"];
@@ -11,7 +10,8 @@ const CORE_ASSETS = ["/", "/index.html", "/favicon.svg"];
 async function safePut(cacheName, request, response) {
   if (!response || !response.ok) return response;
   const cache = await caches.open(cacheName);
-  cache.put(request, response.clone());
+  const reqObj = typeof request === "string" ? new Request(request) : request;
+  cache.put(reqObj, response.clone());
   return response;
 }
 
@@ -19,7 +19,7 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(
     (async () => {
-      const cache = await caches.open(APP_SHELL_CACHE);
+      const cache = await caches.open(STATIC_CACHE);
       await cache.addAll(CORE_ASSETS);
       const manifestUrls = ["/.vite/manifest.json", "/manifest.json"];
       for (const mUrl of manifestUrls) {
@@ -34,10 +34,9 @@ self.addEventListener("install", (event) => {
             if (entry.css) entry.css.forEach((f) => toAdd.add("/" + f.replace(/^\/?/, "")));
             if (entry.assets) entry.assets.forEach((f) => toAdd.add("/" + f.replace(/^\/?/, "")));
           }
-
-          await cache.addAll(toAdd);
+          if (toAdd.size) await cache.addAll([...toAdd]);
           console.debug("Precached files:", toAdd);
-        } catch (e) {
+        } catch {
           console.debug(e);
           // try next path
         }
@@ -68,38 +67,15 @@ self.addEventListener("fetch", (event) => {
 
   const isNavigation = request.mode === "navigate";
 
-  // Model files
-  if (url.pathname.endsWith(".gguf")) {
-    event.respondWith(
-      (async () => {
-        const cache = await caches.open(MODEL_CACHE);
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        try {
-          const resp = await fetch(request);
-          // Store only if fully successful
-          if (resp.ok) {
-            cache.put(request, resp.clone());
-          }
-          return resp;
-        } catch (e) {
-          console.debug(e);
-          return cached || new Response("Offline and model not cached.", { status: 503 });
-        }
-      })()
-    );
-    return;
-  }
-
   if (isNavigation) {
     event.respondWith(
       (async () => {
         try {
           const net = await fetch(request);
-          safePut(APP_SHELL_CACHE, "/index.html", net.clone());
+          safePut(STATIC_CACHE, "/index.html", net.clone());
           return net;
         } catch {
-          const cache = await caches.open(APP_SHELL_CACHE);
+          const cache = await caches.open(STATIC_CACHE);
           return (await cache.match("/index.html")) || new Response("Offline", { status: 503 });
         }
       })()
@@ -111,12 +87,12 @@ self.addEventListener("fetch", (event) => {
   if (/\.(js|css|wasm)(\?|$)/.test(url.pathname)) {
     event.respondWith(
       (async () => {
-        const cache = await caches.open(RUNTIME_CACHE);
+        const cache = await caches.open(STATIC_CACHE);
         const cached = await cache.match(request);
         const fetchPromise = fetch(request)
-          .then((resp) => safePut(RUNTIME_CACHE, request, resp))
+          .then((resp) => safePut(STATIC_CACHE, request, resp))
           .catch(() => null);
-        return cached || fetchPromise || fetchPromise;
+        return cached || fetchPromise || new Response("Offline", { status: 503 });
       })()
     );
     return;
