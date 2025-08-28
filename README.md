@@ -6,6 +6,8 @@
 
 Live site: https://private-ai-chat.vercel.app
 
+Blog post: https://dev.to/dchif/run-your-offline-ai-chat-assistant-pure-browser-zero-backend-1e48
+
 ## Running locally
 
 1. Install dependencies
