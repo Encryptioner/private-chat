@@ -188,9 +188,11 @@ function App() {
 
   const handleFileInputChange = (event) => {
     const files = event.target.files;
+
     if (!files.length) {
       return;
     }
+
     setLocalModelFiles(files);
     setModelState({ ...modelStateDefaults, modelId: "file" });
   };

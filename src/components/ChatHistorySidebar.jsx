@@ -34,7 +34,9 @@ function ChatHistorySidebar({ sessions, currentSessionId, onSessionSelect, onSes
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
   const sessionsList = Object.values(sessions).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 

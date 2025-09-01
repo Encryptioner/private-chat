@@ -5,7 +5,9 @@ export const generateSessionId = () => `session_${Date.now()}_${Math.random().to
 
 export const generateSessionTitle = (messages) => {
   const firstUserMessage = messages.find((msg) => msg.role === "user");
-  if (!firstUserMessage) return "New Chat";
+  if (!firstUserMessage) {
+    return "New Chat";
+  }
 
   const title = firstUserMessage.content.trim();
   return title.length > 30 ? title.substring(0, 30) + "..." : title;
