@@ -4,8 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "pnpm run build:embed && vite",
+    "dev:watch": "concurrently \"pnpm run build:embed --watch\" \"vite\"",
+    "build": "vite build && pnpm run build:embed",
+    "build:embed": "vite build --config vite.embed.config.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "postinstall": "node download-model.cjs"

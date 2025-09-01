@@ -77,7 +77,7 @@ function App() {
     ? { name: localModelFiles[0].name, url: "file", license: "" }
     : PRESET_MODELS[modelId];
 
-  const wllama = useMemo(() => getWllamaInstance(), [selectedModel.name]);
+  const wllama = useMemo(() => getWllamaInstance(), []);
 
   const messagesContainerRef = useRef(null);
   const fileInputRef = useRef(null);
