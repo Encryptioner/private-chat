@@ -32,7 +32,6 @@ const models = {
       : "https://huggingface.co/unsloth/LFM2-700M-GGUF/resolve/main/LFM2-700M-Q4_K_M.gguf",
     license: "https://www.liquid.ai/lfm-license",
     description: "LFM2 models by Liquid AI are designed for on-device efficiency",
-    default: true,
   },
   "Qwen 3 (0.6B)": {
     url: "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf",
@@ -48,6 +47,7 @@ const models = {
     url: "https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-Q8_0.gguf",
     license: "https://deepmind.google/models/gemma/gemma-3",
     description: "Gemma is a lightweight, family of models from Google built on Gemini technology.",
+    default: true,
   },
 };
 
