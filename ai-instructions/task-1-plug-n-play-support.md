@@ -167,3 +167,8 @@ Check this for reference: https://github.com/Encryptioner/markdown-to-slide/blob
 1. The error is still present. wllama.js:65 Uncaught (in promise) TypeError: wllamaInstance.getChatTemplate is not a function
     at formatChat (wllama.js:65:48)
     at submitPrompt (App.jsx:199:33)
+
+
+### Comments
+1. Ran compact command after that
+2. Updated some docs and github deployment workflow after that

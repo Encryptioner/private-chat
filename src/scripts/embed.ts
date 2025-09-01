@@ -19,7 +19,28 @@ class EmbedScript {
 
     try {
       const parsedUrl = new URL(src);
-      return parsedUrl.origin;
+      const isDevelopment = parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1';
+      const isGitHubPages = parsedUrl.hostname.endsWith('.github.io');
+      
+      if (isDevelopment) {
+        // Development environment
+        return parsedUrl.origin + '/';
+      } else if (isGitHubPages) {
+        // GitHub Pages deployment - extract repo name from path
+        // Expected pattern: https://username.github.io/repo-name/embed.js
+        const pathParts = parsedUrl.pathname.split('/').filter(part => part);
+        if (pathParts.length >= 1) {
+          const repoName = pathParts[0]; // First path segment is repo name
+          return `${parsedUrl.origin}/${repoName}/`;
+        } else {
+          // Fallback for GitHub Pages
+          return parsedUrl.origin + '/in-browser-llm-inference/';
+        }
+      } else {
+        // Standalone domain deployment - use origin directly
+        // Expected pattern: https://mydomain.com/embed.js
+        return parsedUrl.origin + '/';
+      }
     } catch (error) {
       console.error(`Invalid src "${src}" for public path. Error: `, error);
       return undefined;

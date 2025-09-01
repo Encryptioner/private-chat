@@ -36,22 +36,43 @@ const serveStaticFiles = () => ({
 });
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [react(), serveStaticFiles()],
-  server: {
-    open: true,
-    headers: {
-      "Cross-Origin-Embedder-Policy": "require-corp",
-      "Cross-Origin-Opener-Policy": "same-origin",
+export default defineConfig(({ command, mode }) => {
+  const isProduction = command === "build";
+  const isDevelopment = command === "serve";
+
+  // Deployment configuration - easily switch between GitHub Pages and standalone domain
+  const DEPLOYMENT_TYPE = process.env.DEPLOYMENT_TYPE || "github-pages"; // or "standalone"
+  const REPO_NAME = "in-browser-llm-inference";
+
+  // Determine base path based on deployment type
+  let basePath = "/";
+  if (isProduction) {
+    if (DEPLOYMENT_TYPE === "github-pages") {
+      basePath = `/${REPO_NAME}/`;
+    } else {
+      // Standalone domain uses root path
+      basePath = "/";
+    }
+  }
+
+  return {
+    base: basePath,
+    plugins: [react(), serveStaticFiles()],
+    server: {
+      open: true,
+      headers: {
+        "Cross-Origin-Embedder-Policy": "require-corp",
+        "Cross-Origin-Opener-Policy": "same-origin",
+      },
     },
-  },
-  preview: {
-    headers: {
-      "Cross-Origin-Embedder-Policy": "require-corp",
-      "Cross-Origin-Opener-Policy": "same-origin",
+    preview: {
+      headers: {
+        "Cross-Origin-Embedder-Policy": "require-corp",
+        "Cross-Origin-Opener-Policy": "same-origin",
+      },
     },
-  },
-  build: {
-    manifest: true,
-  },
+    build: {
+      manifest: true,
+    },
+  };
 });
