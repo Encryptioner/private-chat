@@ -30,7 +30,6 @@ import { StopCircleIcon } from "@heroicons/react/24/solid";
 import Markdown from "./components/Markdown";
 import Footer from "./components/Footer";
 import Loader from "./components/Loader";
-import NavLink from "./components/NavLink";
 import Dropdown from "./components/Dropdown";
 import IconButton from "./components/IconButton";
 import ChatHistorySidebar from "./components/ChatHistorySidebar";
