@@ -40,8 +40,30 @@ const DEFAULT_MODEL_ID = Object.values(PRESET_MODELS).find((m) => m.default)?.na
 const preventClickAction = (e) => e.preventDefault();
 // eslint-disable-next-line no-console
 const copyToClipboard = (text) => navigator.clipboard.writeText(text).catch((e) => console.error(e));
-const getCalloutProps = (role) =>
-  role === "user" ? { variant: "soft" } : { variant: "outline", className: "no-box-shadow", highContrast: true };
+
+const formatMessageContent = (content) => {
+  if (!content || content === ELLIPSIS) return content;
+
+  // Handle code blocks with syntax highlighting
+  let formattedContent = content.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+    return `<div class="code-block">
+      <div class="code-header">${lang || "code"}</div>
+      <pre><code>${code.trim()}</code></pre>
+    </div>`;
+  });
+
+  // Handle inline code
+  formattedContent = formattedContent.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+
+  // Handle URLs - make them clickable
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  formattedContent = formattedContent.replace(
+    urlRegex,
+    (url) => `<a href="${url}" class="message-link" target="_blank" rel="noopener noreferrer">${url}</a>`
+  );
+
+  return formattedContent;
+};
 
 const messageIdGenerator = (function* () {
   let id = 0;
@@ -283,6 +305,7 @@ function App() {
 
   const submitPrompt = async () => {
     let sessionId = currentSessionId;
+    const currentPrompt = prompt; // Store the current prompt before clearing
 
     // Create a new session if none exists
     if (!sessionId) {
@@ -300,9 +323,13 @@ function App() {
 
     // Ensure the ref is up to date before streaming
     currentSessionIdRef.current = sessionId;
-    const onNewToken = streamMessages(prompt, sessionId);
+    const onNewToken = streamMessages(currentPrompt, sessionId);
     setIsGenerating(true);
     setGeneratingSessionId(sessionId);
+
+    // Clear the input immediately after starting generation
+    setPrompt("");
+
     if (!isReady) await loadModel();
     const latestMessages = [...messages].slice(-4);
     const formattedChat = await formatChat(wllama, [
@@ -311,7 +338,7 @@ function App() {
         content: customSystemMessage,
       },
       ...latestMessages,
-      { role: ROLE.user, content: prompt.trim(), id: messageIdGenerator.next().value },
+      { role: ROLE.user, content: currentPrompt.trim(), id: messageIdGenerator.next().value },
     ]);
     await wllama.createCompletion(formattedChat, {
       nPredict: 1024,
@@ -320,10 +347,33 @@ function App() {
     });
     setIsGenerating(false);
     setGeneratingSessionId(null);
-    setPrompt("");
   };
 
-  const handleOnPressEnter = (e) => (e.key === "Enter" ? submitPrompt() : null);
+  const handleOnPressEnter = (e) => {
+    if (e.key === "Enter") {
+      if (e.shiftKey) {
+        // Shift+Enter: Insert new line
+        e.preventDefault();
+        const textarea = e.target;
+        const cursorPosition = textarea.selectionStart;
+        const textBefore = prompt.substring(0, cursorPosition);
+        const textAfter = prompt.substring(cursorPosition);
+        setPrompt(textBefore + "\n" + textAfter);
+
+        // Reset cursor position after state update
+        setTimeout(() => {
+          textarea.selectionStart = textarea.selectionEnd = cursorPosition + 1;
+        }, 0);
+      } else {
+        // Regular Enter: Submit message (only if there's at least one word)
+        e.preventDefault();
+        const trimmedPrompt = prompt.trim();
+        if (trimmedPrompt && /\S/.test(trimmedPrompt)) {
+          submitPrompt();
+        }
+      }
+    }
+  };
 
   const handlePromptInputChange = (e) => setPrompt(e.target.value);
 
@@ -440,7 +490,7 @@ function App() {
   };
 
   const isBusy = isLoading || isGenerating;
-  const shouldDisableSubmit = isBusy || prompt.trim().length === 0;
+  const shouldDisableSubmit = isBusy || !prompt.trim() || !/\S/.test(prompt.trim());
   const loadedSize = loadingProgress.loaded || 0;
   const totalSize = loadingProgress.total || 100;
   const loadingProgressDisplayString = `${(Math.floor((loadedSize / totalSize) * 10000) / 100).toFixed(2)}%`;
@@ -502,11 +552,11 @@ function App() {
               </Flex>
             </header>
           </Flex>
-          <Container size="2">
-            <Box minHeight="20vh" py="2">
+          <Container size="2" style={{ maxWidth: "100%", overflow: "hidden" }}>
+            <Box minHeight="20vh" py="2" style={{ maxWidth: "100%", overflow: "hidden" }}>
               {messages.length ? (
                 <ScrollArea
-                  type="hover"
+                  type="scroll"
                   scrollbars="vertical"
                   className={`messages-container${isEmbedded ? " embedded" : ""}`}
                   ref={messagesContainerRef}>
@@ -515,38 +565,109 @@ function App() {
                     const [reasoning, conclusion = " "] = content.startsWith("<think>")
                       ? content.split("</think>")
                       : ["", content];
+                    const isUser = role === ROLE.user;
+                    const formattedContent = formatMessageContent(conclusion);
+
                     return (
-                      <Box key={id} pl={role === "user" ? "9" : 0} pr="3" className="mobile-message">
-                        <Callout.Root {...getCalloutProps(role)}>
-                          <Callout.Text size="3" asChild>
-                            <div>
-                              {content !== ELLIPSIS && (
-                                <>
+                      <Box key={id} mb="6" className="mobile-message">
+                        <Flex direction="row" justify="start" align="start" gap="4">
+                          {/* Role indicator */}
+                          <Box
+                            style={{
+                              width: "28px",
+                              height: "28px",
+                              backgroundColor: isUser ? "var(--accent-9)" : "var(--gray-a6)",
+                              borderRadius: "6px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: "12px",
+                              fontWeight: "600",
+                              color: isUser ? "white" : "var(--gray-a12)",
+                              flexShrink: 0,
+                              marginTop: "2px",
+                            }}>
+                            {isUser ? "U" : "AI"}
+                          </Box>
+
+                          <Box style={{ flex: 1, minWidth: 0 }}>
+                            {/* Message content */}
+                            <Box
+                              style={{
+                                background: "var(--color-surface)",
+                                border: `1px solid var(--gray-a6)`,
+                                borderRadius: "8px",
+                                padding: "16px",
+                                wordBreak: "break-word",
+                                wordWrap: "break-word",
+                                overflowWrap: "break-word",
+                                hyphens: "auto",
+                                position: "relative",
+                                maxWidth: "100%",
+                                overflow: "hidden",
+                              }}>
+                              {content !== ELLIPSIS ? (
+                                <div>
                                   {reasoning && (
-                                    <Text as="div" size="1" color="gray" mb="4">
-                                      <i>{reasoning.split("<think>")[1] || ""}</i>
+                                    <Text
+                                      as="div"
+                                      size="1"
+                                      style={{
+                                        color: "var(--gray-a11)",
+                                        marginBottom: "12px",
+                                        fontStyle: "italic",
+                                        padding: "8px",
+                                        background: "var(--gray-a3)",
+                                        borderRadius: "4px",
+                                        borderLeft: "3px solid var(--gray-a6)",
+                                      }}>
+                                      <strong>Reasoning:</strong> {reasoning.split("<think>")[1] || ""}
                                     </Text>
                                   )}
-                                  <Markdown>{conclusion}</Markdown>
-                                </>
+                                  {formattedContent === conclusion ? (
+                                    <Markdown>{conclusion}</Markdown>
+                                  ) : (
+                                    <div
+                                      dangerouslySetInnerHTML={{ __html: formattedContent }}
+                                      style={{
+                                        lineHeight: "1.6",
+                                        wordBreak: "break-word",
+                                        overflowWrap: "break-word",
+                                        maxWidth: "100%",
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              ) : (
+                                <div style={{ color: "var(--gray-a10)" }}>{ELLIPSIS}</div>
                               )}
-                              {role === ROLE.assistant &&
-                                (isLastMessage && isGenerating && generatingSessionId === currentSessionId ? null : (
-                                  <Flex py="3" gap="4">
-                                    <IconButton
-                                      tooltip="Read"
-                                      onClick={() => handleReadAloudClick(content)}
-                                      variant="ghost">
-                                      {isReadingAloud ? <StopCircleIcon width="20" /> : <SpeakerWaveIcon width="20" />}
-                                    </IconButton>
-                                    <IconButton tooltip="Copy" onClick={() => copyToClipboard(content)} variant="ghost">
-                                      <DocumentDuplicateIcon width="20" />
-                                    </IconButton>
-                                  </Flex>
-                                ))}
-                            </div>
-                          </Callout.Text>
-                        </Callout.Root>
+                            </Box>
+
+                            {/* Action buttons for assistant messages */}
+                            {role === ROLE.assistant &&
+                              content !== ELLIPSIS &&
+                              !(isLastMessage && isGenerating && generatingSessionId === currentSessionId) && (
+                                <Flex mt="3" gap="2" justify="start">
+                                  <IconButton
+                                    size="1"
+                                    tooltip="Read aloud"
+                                    onClick={() => handleReadAloudClick(content)}
+                                    variant="soft"
+                                    color="gray">
+                                    {isReadingAloud ? <StopCircleIcon width="14" /> : <SpeakerWaveIcon width="14" />}
+                                  </IconButton>
+                                  <IconButton
+                                    size="1"
+                                    tooltip="Copy to clipboard"
+                                    onClick={() => copyToClipboard(content)}
+                                    variant="soft"
+                                    color="gray">
+                                    <DocumentDuplicateIcon width="14" />
+                                  </IconButton>
+                                </Flex>
+                              )}
+                          </Box>
+                        </Flex>
                       </Box>
                     );
                   })}
@@ -582,49 +703,119 @@ function App() {
               )}
             </Box>
             <Box>
-              <TextField.Root
-                value={prompt}
-                onKeyDown={handleOnPressEnter}
-                onChange={handlePromptInputChange}
-                placeholder="Enter your prompt here"
-                maxLength={4096}
-                disabled={isBusy}
-                variant="soft"
-                radius="full"
-                size="3"
-                className="no-outline">
-                <TextField.Slot side="right" pr="1">
-                  <Flex gap="2" align="center">
-                    {speechRecognition && (
-                      <IconButton
-                        size="2"
-                        variant={isRecording ? "solid" : "ghost"}
-                        color={isRecording ? "red" : undefined}
-                        title={isRecording ? "Stop recording" : "Voice input"}
-                        onClick={handleSpeechToText}
-                        disabled={isBusy && !isRecording}>
-                        <MicrophoneIcon
-                          height="16"
-                          width="16"
-                          style={{
-                            animation: isRecording ? "pulse 1s infinite" : "none",
-                          }}
-                        />
-                      </IconButton>
-                    )}
+              <Box
+                style={{
+                  position: "relative",
+                  background: "var(--color-surface)",
+                  borderRadius: "12px",
+                  border: "2px solid var(--gray-a6)",
+                  padding: "12px 16px",
+                  minHeight: "52px",
+                  display: "flex",
+                  alignItems: "flex-end",
+                  gap: "12px",
+                  transition: "border-color 0.2s ease",
+                }}
+                onFocus={(e) => {
+                  if (e.currentTarget.querySelector("textarea")) {
+                    e.currentTarget.style.borderColor = "var(--accent-8)";
+                  }
+                }}
+                onBlur={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget)) {
+                    e.currentTarget.style.borderColor = "var(--gray-a6)";
+                  }
+                }}>
+                <Box style={{ flex: 1, position: "relative" }}>
+                  <textarea
+                    value={prompt}
+                    onKeyDown={handleOnPressEnter}
+                    onChange={handlePromptInputChange}
+                    placeholder="Type your message... (Shift+Enter for new line)"
+                    maxLength={4096}
+                    disabled={isBusy}
+                    rows={1}
+                    style={{
+                      width: "100%",
+                      border: "none",
+                      outline: "none",
+                      background: "transparent",
+                      color: "var(--color-text)",
+                      fontSize: "var(--font-size-3)",
+                      lineHeight: "1.5",
+                      resize: "none",
+                      overflow: "hidden",
+                      minHeight: "24px",
+                      maxHeight: "120px",
+                      fontFamily: "inherit",
+                    }}
+                    onInput={(e) => {
+                      e.target.style.height = "auto";
+                      e.target.style.height = e.target.scrollHeight + "px";
+                      if (e.target.scrollHeight > 120) {
+                        e.target.style.overflow = "auto";
+                      } else {
+                        e.target.style.overflow = "hidden";
+                      }
+                    }}
+                    onFocus={(e) => {
+                      e.target.parentElement.parentElement.style.borderColor = "var(--accent-8)";
+                    }}
+                    onBlur={(e) => {
+                      if (!e.target.parentElement.parentElement.contains(e.relatedTarget)) {
+                        e.target.parentElement.parentElement.style.borderColor = "var(--gray-a6)";
+                      }
+                    }}
+                  />
+                  <Text
+                    size="1"
+                    style={{
+                      position: "absolute",
+                      bottom: "-22px",
+                      right: "0px",
+                      color: prompt.length > 3500 ? "var(--red-9)" : "var(--gray-a11)",
+                      background: "var(--color-background)",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      fontSize: "11px",
+                      fontWeight: prompt.length > 3500 ? "600" : "normal",
+                    }}>
+                    {prompt.length}/4096
+                  </Text>
+                </Box>
+                <Flex gap="2" align="center" style={{ paddingBottom: "4px" }}>
+                  {speechRecognition && (
                     <IconButton
                       size="2"
-                      variant="solid"
-                      title="submit"
-                      onClick={submitPrompt}
-                      disabled={shouldDisableSubmit}
-                      loading={isGenerating}
-                      highContrast>
-                      <ArrowRightIcon height="16" width="16" />
+                      variant={isRecording ? "solid" : "soft"}
+                      color={isRecording ? "red" : "gray"}
+                      title={isRecording ? "Stop recording" : "Voice input"}
+                      onClick={handleSpeechToText}
+                      disabled={isBusy && !isRecording}>
+                      <MicrophoneIcon
+                        height="16"
+                        width="16"
+                        style={{
+                          animation: isRecording ? "pulse 1s infinite" : "none",
+                        }}
+                      />
                     </IconButton>
-                  </Flex>
-                </TextField.Slot>
-              </TextField.Root>
+                  )}
+                  <IconButton
+                    size="2"
+                    variant="solid"
+                    title="Send message"
+                    onClick={submitPrompt}
+                    disabled={shouldDisableSubmit}
+                    loading={isGenerating}
+                    style={{
+                      backgroundColor: shouldDisableSubmit ? "var(--gray-a6)" : "var(--accent-9)",
+                      color: "white",
+                    }}>
+                    <ArrowRightIcon height="16" width="16" />
+                  </IconButton>
+                </Flex>
+              </Box>
             </Box>
             {!isEmbedded && (
               <Box pt="2" pb="4">
