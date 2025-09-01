@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Embed Test</title>
+</head>
+<body>
+    <h1>Test Page</h1>
+    <p>The chat should load below:</p>
+    
+    <!-- Default div - chat loads automatically -->
+    <div id="ai-chat-embed-div"></div>
+    
+    <!-- Custom div for manual loading -->
+    <div id="custom-chat-div" style="margin-top: 20px;"></div>
+    <button onclick="window.loadChatApp('custom-chat-div')">
+        Load Chat in Custom Div
+    </button>
+    
+    <script id="aiChatEmbedScript" defer src="http://localhost:5173/embed.js"></script>
+</body>
+</html>

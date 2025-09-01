@@ -7,7 +7,7 @@
  */ -->
 
 <!-- ## NOTE: You may use below instruction in claude from systematic command on claude
-Assess the @ai-instructions/task-1-initial-setup.md file if u haven't already. 
+Assess the @ai-instructions/task-1-task-1-plug-n-play-support.md file if u haven't already. 
 Then follow the instructions of last instruction list of the file
 Check this for reference: https://github.com/Encryptioner/markdown-to-slide/blob/master/ai-instructions/task-1-initial-setup.md -->
 
@@ -17,12 +17,82 @@ Check this for reference: https://github.com/Encryptioner/markdown-to-slide/blob
 ## General Rules
 1. Assess summary of your earlier tasks in `ai-summaries/task-1-plug-n-play-support` file if you haven't already. And write or update the summary of your updates in that file when all the current commanded tasks/instructions are done. Keep it short, concise, to-the-point. Include summary of key files changed (with info on functionality changed). You may update it in chronological way by step 1, step 2 and so on. It should reflect the continuos changes done on the codebase.
 2. If the instruction lists are not chronological, fix them.
+3. Wherever, the project name or link is used, take it from constant. So that, it can be easily updated
 
 
 ## Instruction List 1
 
 ### Instructions
-1. 
+1. I want to make this website load as chat window in other browsers. I've already made similar implementation in `../../ai-chat-interface-web/*` project. Though it is in Vue. Understand it and make similar implementation and script for this project. However, there should have no backend validation. Everything should be on client side.
+2. After implementing that, create `github actions` so that, this can be deployed in github pages as `https://user.github.io/<project-name>/`. And it can be served for other website to load
+3. After implementing that, test it in the `../../markdown-to-slide/` website. When that website loads, there should be a chat icon on right bottom. Clicking on that, it will open a chat window integrated in that website. So, user can do chat from that domain
 
 ### Comments
-1. 
+1. Added instructions for the directory to use
+
+
+## Instruction List 2
+
+### Instructions
+1. Create a guideline in `docs` directory of `in-browser-llm-inference` project on how to test this in dev and production
+2. In the `markdown-to-slide` project, there should have a constant. where I can declare the url of the chat plug and play app.If the url is empty or not a valid url, the chat button won't show
+3. Update readme of both projects to ensure one can easily test and understand how it works
+
+### Comments
+1. Test seems not working
+
+## Instruction List 2
+
+### Instructions
+1. My project is running on `http://localhost:5173/embed.js`. I ran `pnpm build -> pnpm dev`. I'm loading the `test-embed.html` file. It shows `The chat should load below: Load Chat in Custom Div`. However, in console, there is below error. 
+    Failed to load resource: the server responded with a status of 404 (Not Found) embed.js.1
+
+### Comments
+1. It's loads now. However, there is issue related to service worker
+
+
+## Instruction List 2
+
+### Instructions
+1. In the console, there is this error. Fix that. Ensure it works and production ready. It can be tested in both dev and production.
+   sw.js:40 Uncaught (in promise) ReferenceError: e is not defined
+    at sw.js:40:25
+
+### Comments
+1. There is new error now
+
+
+## Instruction List 2
+
+### Instructions
+1. There is this error in console. And when I run the website, there is this error
+   The script has an unsupported MIME type ('text/html').Understand this error
+    SecurityError: Failed to register a ServiceWorker for scope ('http://localhost:5173/') with script ('http://localhost:5173/sw.js'): The script has an unsupported MIME type ('text/html').
+2. When I start chat, it gives this error. However, chatting works ok
+   chunk-JC7SLT4N.js?v=b9ef1fa3:521 Warning: validateDOMNesting(...): <p> cannot appear as a descendant of <p>.
+    at p
+    at http://localhost:5173/node_modules/.vite/deps/@radix-ui_themes.js?v=68bc926b:252:13
+    at http://localhost:5173/node_modules/.vite/deps/@radix-ui_themes.js?v=68bc926b:229:13
+    at http://localhost:5173/node_modules/.vite/deps/@radix-ui_themes.js?v=68bc926b:15850:96
+    at p (http://localhost:5173/src/components/Markdown.jsx:65:23)
+
+### Comments
+1. The service worker error is not present now. Good work.
+2. The issue related to validate dom nesting in this project still exist. It could be existing issue. Not working on that.
+3. Found issue in loading chat app in `markdown-to-slide`. Have to fix that
+
+
+## Instruction List 3
+
+### Instructions
+1. When I start, `markdown-to-slide` project by pnpm dev, it gives this error. `intercept-console-error.ts:44 _loadApp -> No element found for id ai-chat-widget-container`
+2. Also it should be in a way that, on the `markdown-to-slide` project, user doesn't have to create chat box/icon on his own. It should be setup using `in-browser-llm-inference` project. If necessary check `ai-chat-interface-web` project. It works as plug and play. If the embed script is present, it should work. Follow this info, in that readme
+    If u want to load the chat assistant by default, ensure there is a html `div` element present on the time website first loads by id `ai-mate-chat-embed-div`. For example:
+    ```
+    <div v-show="!authStore.token">
+    <div id="ai-mate-chat-embed-div" />
+    </div>
+    ```
+    1. If u want to load the chat assistant later in your chosen div id, ensure there is a html `div` and assign an id to it. For example:
+    ```
+    <div id="ai-mate-chat-embed-div-2" />
