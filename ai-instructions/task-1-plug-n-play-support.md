@@ -171,3 +171,4 @@ Check this for reference: https://github.com/Encryptioner/markdown-to-slide/blob
 
 ### Comments
 1. Ran compact command after that
+2. Updated some docs and github deployment workflow after that
