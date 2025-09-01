@@ -12,12 +12,12 @@ Blog post: https://dev.to/dchif/run-your-offline-ai-chat-assistant-pure-browser-
 
 1. Install dependencies
 ```
-npm install
+pnpm install
 ```
 
 2. Start web app
 ```
-npm run dev
+pnpm run dev
 ```
 
 3. Navigate to http://localhost:5173/ 

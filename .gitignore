@@ -24,3 +24,16 @@ dist-ssr
 *.sw?
 public/models
 .vercel
+
+# Claude IDE
+.claude/*
+!.claude/*.example*
+
+# Cursor IDE
+.cursor/*
+.cursorignore
+!.cursor/*.example*
+
+# VS Code IDE
+.vscode/*
+!.vscode/*.example.json
