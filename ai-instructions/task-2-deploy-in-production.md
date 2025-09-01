@@ -26,3 +26,7 @@ Check this for reference: https://github.com/Encryptioner/markdown-to-slide/blob
 1. Ensure the project is production ready. Check env variables wherever needed
 2. Update `readme/testing guide` if necessary. Create a `deployment guide` in `docs`
 3. Ensure the project can be deployed in github pages. And the project can be run individually. As well as it can be loaded as chatbot for other websites
+
+
+### Comments
+1. it failed in `Install dependencies` state in `Github actions`. Updated it manually
