@@ -5,6 +5,7 @@ function IconButton({ tooltip, ...restOfProps }) {
   if (!tooltip) {
     return <BaseIconButton {...restOfProps} />;
   }
+
   return (
     <Tooltip content={tooltip}>
       <BaseIconButton {...restOfProps} />
