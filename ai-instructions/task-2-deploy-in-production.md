@@ -29,4 +29,5 @@ Check this for reference: https://github.com/Encryptioner/markdown-to-slide/blob
 
 
 ### Comments
-1. it failed in `Install dependencies` state in `Github actions`. Updated it manually
+1. It failed in `Install dependencies` state in `Github actions`. Updated it manually
+2. Added package `prop-types`
