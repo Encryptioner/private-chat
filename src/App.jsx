@@ -145,12 +145,10 @@ function App() {
       currentSessionIdRef.current = latestSession.id;
       setMessages(latestSession.messages);
     } else {
-      const newSession = createNewSession();
-      const newSessions = { [newSession.id]: newSession };
-      setChatSessions(newSessions);
-      setCurrentSessionId(newSession.id);
-      currentSessionIdRef.current = newSession.id;
-      saveChatSessions(newSessions);
+      // Don't create initial session, let user start fresh
+      setCurrentSessionId(null);
+      currentSessionIdRef.current = null;
+      setMessages([]);
     }
 
     loadModel();
@@ -168,7 +166,12 @@ function App() {
         [currentSessionId]: updatedSession,
       };
       setChatSessions(updatedSessions);
-      saveChatSessions(updatedSessions);
+
+      // Only save sessions that have messages
+      const sessionsToSave = Object.fromEntries(
+        Object.entries(updatedSessions).filter(([_, session]) => session.messages.length > 0)
+      );
+      saveChatSessions(sessionsToSave);
     }
   }, [messages, currentSessionId]);
 
@@ -230,10 +233,8 @@ function App() {
       return current;
     });
 
-    // Update current messages if viewing this session
-    if (sessionId === currentSessionId) {
-      setMessages((current) => [...current, userMessage, assistantMessage]);
-    }
+    // Update current messages if this is the active session
+    setMessages((current) => [...current, userMessage, assistantMessage]);
 
     return (token, piece, text) => {
       // Update the specific session
@@ -241,7 +242,9 @@ function App() {
         const session = current[sessionId];
         if (session) {
           const updatedMessages = [...session.messages];
-          updatedMessages[updatedMessages.length - 1].content = text;
+          if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1]) {
+            updatedMessages[updatedMessages.length - 1].content = text;
+          }
           const updatedSession = {
             ...session,
             messages: updatedMessages,
@@ -257,7 +260,7 @@ function App() {
         // Check if we're still viewing the same session
         if (sessionId === currentSessionIdRef.current) {
           const updatedMessages = [...current];
-          if (updatedMessages.length > 0) {
+          if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1]) {
             updatedMessages[updatedMessages.length - 1].content = text;
           }
           return updatedMessages;
@@ -269,7 +272,24 @@ function App() {
   };
 
   const submitPrompt = async () => {
-    const sessionId = currentSessionId;
+    let sessionId = currentSessionId;
+
+    // Create a new session if none exists
+    if (!sessionId) {
+      const newSession = createNewSession();
+      const updatedSessions = {
+        ...chatSessions,
+        [newSession.id]: newSession,
+      };
+      setChatSessions(updatedSessions);
+      setCurrentSessionId(newSession.id);
+      currentSessionIdRef.current = newSession.id;
+      setMessages([]);
+      sessionId = newSession.id;
+    }
+
+    // Ensure the ref is up to date before streaming
+    currentSessionIdRef.current = sessionId;
     const onNewToken = streamMessages(prompt, sessionId);
     setIsGenerating(true);
     setGeneratingSessionId(sessionId);
@@ -319,7 +339,7 @@ function App() {
     currentSessionIdRef.current = newSession.id;
     setMessages([]);
     setPrompt("");
-    saveChatSessions(updatedSessions);
+    // Don't save empty sessions to localStorage
   };
 
   const handleSessionSelect = (sessionId) => {
@@ -336,16 +356,27 @@ function App() {
   const handleSessionDelete = (sessionId) => {
     const updatedSessions = deleteSession(chatSessions, sessionId);
     setChatSessions(updatedSessions);
-    saveChatSessions(updatedSessions);
+
+    // Only save sessions that have messages
+    const sessionsToSave = Object.fromEntries(
+      Object.entries(updatedSessions).filter(([, session]) => session.messages.length > 0)
+    );
+    saveChatSessions(sessionsToSave);
 
     if (sessionId === currentSessionId) {
-      const remainingSessions = Object.values(updatedSessions);
+      const remainingSessions = Object.values(updatedSessions).filter((session) => session.messages.length > 0);
       if (remainingSessions.length > 0) {
         const latestSession = remainingSessions.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0];
         setCurrentSessionId(latestSession.id);
+        currentSessionIdRef.current = latestSession.id;
         setMessages(latestSession.messages);
+        setPrompt("");
       } else {
-        handleOnNewChatClick();
+        // No sessions with messages left, create a fresh state
+        setCurrentSessionId(null);
+        currentSessionIdRef.current = null;
+        setMessages([]);
+        setPrompt("");
       }
     }
   };
