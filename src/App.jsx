@@ -96,6 +96,7 @@ function App() {
   );
   const [isMobile, setIsMobile] = useState(false);
   const [generatingSessionId, setGeneratingSessionId] = useState(null);
+  const [domainParam, setDomainParam] = useState(null);
   const selectedModel = localModelFiles.length
     ? { name: localModelFiles[0].name, url: "file", license: "" }
     : PRESET_MODELS[modelId];
@@ -167,7 +168,11 @@ function App() {
       setIsEmbedded(true);
     }
 
-    const sessions = loadChatSessions();
+    if (domainParam) {
+      setDomainParam(domainParam);
+    }
+
+    const sessions = loadChatSessions(domainParam);
     setChatSessions(sessions);
 
     const sessionIds = Object.keys(sessions);
@@ -203,7 +208,7 @@ function App() {
       const sessionsToSave = Object.fromEntries(
         Object.entries(updatedSessions).filter(([_, session]) => session.messages.length > 0)
       );
-      saveChatSessions(sessionsToSave);
+      saveChatSessions(sessionsToSave, domainParam);
     }
   }, [messages, currentSessionId]);
 
@@ -421,7 +426,7 @@ function App() {
     const sessionsToSave = Object.fromEntries(
       Object.entries(updatedSessions).filter(([, session]) => session.messages.length > 0)
     );
-    saveChatSessions(sessionsToSave);
+    saveChatSessions(sessionsToSave, domainParam);
 
     if (sessionId === currentSessionId) {
       const remainingSessions = Object.values(updatedSessions).filter((session) => session.messages.length > 0);
@@ -450,7 +455,7 @@ function App() {
         [sessionId]: updatedSession,
       };
       setChatSessions(updatedSessions);
-      saveChatSessions(updatedSessions);
+      saveChatSessions(updatedSessions, domainParam);
     }
   };
 
