@@ -30,7 +30,6 @@ import { StopCircleIcon } from "@heroicons/react/24/solid";
 import Markdown from "./components/Markdown";
 import Footer from "./components/Footer";
 import Loader from "./components/Loader";
-import NavLink from "./components/NavLink";
 import Dropdown from "./components/Dropdown";
 import IconButton from "./components/IconButton";
 import ChatHistorySidebar from "./components/ChatHistorySidebar";
@@ -70,6 +69,10 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [speechRecognition, setSpeechRecognition] = useState(null);
+  const [customSystemMessage, setCustomSystemMessage] = useState(
+    "You are a helpful assistant. Keep responses as concise as possible. Avoid long explanations."
+  );
+  const [isMobile, setIsMobile] = useState(false);
   const selectedModel = localModelFiles.length
     ? { name: localModelFiles[0].name, url: "file", license: "" }
     : PRESET_MODELS[modelId];
@@ -115,7 +118,21 @@ function App() {
     [messages]
   );
 
+  const [isEmbedded, setIsEmbedded] = useState(false);
+
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const systemParam = urlParams.get("system");
+    if (systemParam) {
+      setCustomSystemMessage(decodeURIComponent(systemParam));
+    }
+
+    // Check if we're in embedded mode
+    const embeddedParam = urlParams.get("embedded");
+    if (embeddedParam === "true") {
+      setIsEmbedded(true);
+    }
+
     const sessions = loadChatSessions();
     setChatSessions(sessions);
 
@@ -148,6 +165,13 @@ function App() {
   }, [messages, currentSessionId]);
 
   useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
     if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
@@ -174,7 +198,10 @@ function App() {
       setSpeechRecognition(recognition);
     }
 
-    return () => wllama.exit();
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      wllama.exit();
+    };
   }, []);
 
   const streamMessages = (prompt) => {
@@ -199,7 +226,7 @@ function App() {
     const formattedChat = await formatChat(wllama, [
       {
         role: ROLE.system,
-        content: "You are a helpful assistant. Keep responses as concise as possible. Avoid long explanations.",
+        content: customSystemMessage,
       },
       ...latestMessages,
       { role: ROLE.user, content: prompt.trim(), id: messageIdGenerator.next().value },
@@ -330,10 +357,16 @@ function App() {
         onSessionDelete={handleSessionDelete}
         onSessionRename={handleSessionRename}
         isOpen={isSidebarOpen}
+        isMobile={isMobile}
+        onClose={() => setIsSidebarOpen(false)}
       />
       <Box
-        p={{ initial: "1", md: "3" }}
-        style={{ marginLeft: isSidebarOpen ? "300px" : "0", transition: "margin-left 0.3s ease" }}>
+        p={isEmbedded ? "2" : { initial: "1", md: "3" }}
+        style={{
+          marginLeft: !isMobile && isSidebarOpen ? "300px" : "0",
+          transition: "margin-left 0.3s ease",
+          height: isEmbedded ? "100vh" : "auto",
+        }}>
         <Flex direction="column">
           <Flex direction="row" align="center" justify="between" asChild>
             <header>
@@ -369,13 +402,6 @@ function App() {
                   </DropdownMenu.Item>
                 </Dropdown>
               </Flex>
-              <Box>
-                <NavLink href="https://huggingface.co/models?library=gguf&pipeline_tag=text-generation">
-                  Download Models
-                </NavLink>
-                &nbsp;&bull;&nbsp;
-                <NavLink href="https://github.com/nadchif/in-browser-llm-inference">Github</NavLink>
-              </Box>
             </header>
           </Flex>
           <Container size="2">
@@ -384,7 +410,7 @@ function App() {
                 <ScrollArea
                   type="hover"
                   scrollbars="vertical"
-                  className="messages-container"
+                  className={`messages-container${isEmbedded ? " embedded" : ""}`}
                   ref={messagesContainerRef}>
                   {messages.map(({ content, role, id }, index) => {
                     const isLastMessage = index === messages.length - 1;
@@ -392,7 +418,7 @@ function App() {
                       ? content.split("</think>")
                       : ["", content];
                     return (
-                      <Box key={id} pl={role === "user" ? "9" : 0} pr="3">
+                      <Box key={id} pl={role === "user" ? "9" : 0} pr="3" className="mobile-message">
                         <Callout.Root {...getCalloutProps(role)}>
                           <Callout.Text size="3" asChild>
                             <div>
@@ -499,19 +525,21 @@ function App() {
                 </TextField.Slot>
               </TextField.Root>
             </Box>
-            <Box pt="2" pb="4">
-              <Text as="div" align="center" size="1" color="gray">
-                &#9888; Models can make mistakes, always double-check responses. &bull;&nbsp;
-                <Link href={selectedModel.url} target="_blank" rel="noopener" download highContrast>
-                  Model
-                </Link>
-                &nbsp;&bull;&nbsp;
-                <Link href={selectedModel.license} target="_blank" rel="noopener" highContrast>
-                  License
-                </Link>
-              </Text>
-            </Box>
-            <Footer />
+            {!isEmbedded && (
+              <Box pt="2" pb="4">
+                <Text as="div" align="center" size="1" color="gray">
+                  &#9888; Models can make mistakes, always double-check responses. &bull;&nbsp;
+                  <Link href={selectedModel.url} target="_blank" rel="noopener" download highContrast>
+                    Model
+                  </Link>
+                  &nbsp;&bull;&nbsp;
+                  <Link href={selectedModel.license} target="_blank" rel="noopener" highContrast>
+                    License
+                  </Link>
+                </Text>
+              </Box>
+            )}
+            {!isEmbedded && <Footer />}
           </Container>
         </Flex>
       </Box>
