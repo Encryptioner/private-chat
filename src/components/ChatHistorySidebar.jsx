@@ -42,7 +42,9 @@ function ChatHistorySidebar({
     }
   };
 
-  const sessionsList = Object.values(sessions).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  const sessionsList = Object.values(sessions)
+    .filter((session) => session.messages.length > 0)
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 
   return (
     <>

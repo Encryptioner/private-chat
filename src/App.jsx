@@ -73,6 +73,7 @@ function App() {
     "You are a helpful assistant. Keep responses as concise as possible. Avoid long explanations."
   );
   const [isMobile, setIsMobile] = useState(false);
+  const [generatingSessionId, setGeneratingSessionId] = useState(null);
   const selectedModel = localModelFiles.length
     ? { name: localModelFiles[0].name, url: "file", license: "" }
     : PRESET_MODELS[modelId];
@@ -81,6 +82,7 @@ function App() {
 
   const messagesContainerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const currentSessionIdRef = useRef(currentSessionId);
 
   const loadModel = async () => {
     setModelState((current) => ({ ...current, isLoading: true }));
@@ -150,17 +152,21 @@ function App() {
     if (sessionIds.length > 0) {
       const latestSession = Object.values(sessions).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0];
       setCurrentSessionId(latestSession.id);
+      currentSessionIdRef.current = latestSession.id;
       setMessages(latestSession.messages);
     } else {
-      const newSession = createNewSession();
-      const newSessions = { [newSession.id]: newSession };
-      setChatSessions(newSessions);
-      setCurrentSessionId(newSession.id);
-      saveChatSessions(newSessions);
+      // Don't create initial session, let user start fresh
+      setCurrentSessionId(null);
+      currentSessionIdRef.current = null;
+      setMessages([]);
     }
 
     loadModel();
   }, []);
+
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
 
   useEffect(() => {
     if (currentSessionId && chatSessions[currentSessionId]) {
@@ -170,7 +176,12 @@ function App() {
         [currentSessionId]: updatedSession,
       };
       setChatSessions(updatedSessions);
-      saveChatSessions(updatedSessions);
+
+      // Only save sessions that have messages
+      const sessionsToSave = Object.fromEntries(
+        Object.entries(updatedSessions).filter(([_, session]) => session.messages.length > 0)
+      );
+      saveChatSessions(sessionsToSave);
     }
   }, [messages, currentSessionId]);
 
@@ -214,23 +225,84 @@ function App() {
     };
   }, []);
 
-  const streamMessages = (prompt) => {
-    setMessages((current) => [
-      ...current,
-      { role: ROLE.user, content: prompt.trim(), id: messageIdGenerator.next().value },
-      { role: ROLE.assistant, content: ELLIPSIS, id: messageIdGenerator.next().value },
-    ]);
-    return (token, piece, text) =>
-      setMessages((current) => {
-        const updatedMessages = [...current];
-        updatedMessages[updatedMessages.length - 1].content = text;
-        return updatedMessages;
+  const streamMessages = (prompt, sessionId) => {
+    const userMessage = { role: ROLE.user, content: prompt.trim(), id: messageIdGenerator.next().value };
+    const assistantMessage = { role: ROLE.assistant, content: ELLIPSIS, id: messageIdGenerator.next().value };
+
+    // Update the specific session's messages
+    setChatSessions((current) => {
+      const session = current[sessionId];
+      if (session) {
+        const updatedSession = {
+          ...session,
+          messages: [...session.messages, userMessage, assistantMessage],
+          updatedAt: new Date().toISOString(),
+        };
+        return { ...current, [sessionId]: updatedSession };
+      }
+      return current;
+    });
+
+    // Update current messages if this is the active session
+    setMessages((current) => [...current, userMessage, assistantMessage]);
+
+    return (token, piece, text) => {
+      // Update the specific session
+      setChatSessions((current) => {
+        const session = current[sessionId];
+        if (session) {
+          const updatedMessages = [...session.messages];
+          if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1]) {
+            updatedMessages[updatedMessages.length - 1].content = text;
+          }
+          const updatedSession = {
+            ...session,
+            messages: updatedMessages,
+            updatedAt: new Date().toISOString(),
+          };
+          return { ...current, [sessionId]: updatedSession };
+        }
+        return current;
       });
+
+      // Update current messages only if viewing this session
+      setMessages((current) => {
+        // Check if we're still viewing the same session
+        if (sessionId === currentSessionIdRef.current) {
+          const updatedMessages = [...current];
+          if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1]) {
+            updatedMessages[updatedMessages.length - 1].content = text;
+          }
+          return updatedMessages;
+        }
+        // Don't update if we've switched to a different session
+        return current;
+      });
+    };
   };
 
   const submitPrompt = async () => {
-    const onNewToken = streamMessages(prompt);
+    let sessionId = currentSessionId;
+
+    // Create a new session if none exists
+    if (!sessionId) {
+      const newSession = createNewSession();
+      const updatedSessions = {
+        ...chatSessions,
+        [newSession.id]: newSession,
+      };
+      setChatSessions(updatedSessions);
+      setCurrentSessionId(newSession.id);
+      currentSessionIdRef.current = newSession.id;
+      setMessages([]);
+      sessionId = newSession.id;
+    }
+
+    // Ensure the ref is up to date before streaming
+    currentSessionIdRef.current = sessionId;
+    const onNewToken = streamMessages(prompt, sessionId);
     setIsGenerating(true);
+    setGeneratingSessionId(sessionId);
     if (!isReady) await loadModel();
     const latestMessages = [...messages].slice(-4);
     const formattedChat = await formatChat(wllama, [
@@ -247,6 +319,7 @@ function App() {
       onNewToken,
     });
     setIsGenerating(false);
+    setGeneratingSessionId(null);
     setPrompt("");
   };
 
@@ -273,15 +346,19 @@ function App() {
     };
     setChatSessions(updatedSessions);
     setCurrentSessionId(newSession.id);
+    currentSessionIdRef.current = newSession.id;
     setMessages([]);
-    saveChatSessions(updatedSessions);
+    setPrompt("");
+    // Don't save empty sessions to localStorage
   };
 
   const handleSessionSelect = (sessionId) => {
     const session = chatSessions[sessionId];
     if (session) {
       setCurrentSessionId(sessionId);
+      currentSessionIdRef.current = sessionId;
       setMessages(session.messages);
+      setPrompt("");
       setIsSidebarOpen(false);
     }
   };
@@ -289,16 +366,27 @@ function App() {
   const handleSessionDelete = (sessionId) => {
     const updatedSessions = deleteSession(chatSessions, sessionId);
     setChatSessions(updatedSessions);
-    saveChatSessions(updatedSessions);
+
+    // Only save sessions that have messages
+    const sessionsToSave = Object.fromEntries(
+      Object.entries(updatedSessions).filter(([, session]) => session.messages.length > 0)
+    );
+    saveChatSessions(sessionsToSave);
 
     if (sessionId === currentSessionId) {
-      const remainingSessions = Object.values(updatedSessions);
+      const remainingSessions = Object.values(updatedSessions).filter((session) => session.messages.length > 0);
       if (remainingSessions.length > 0) {
         const latestSession = remainingSessions.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))[0];
         setCurrentSessionId(latestSession.id);
+        currentSessionIdRef.current = latestSession.id;
         setMessages(latestSession.messages);
+        setPrompt("");
       } else {
-        handleOnNewChatClick();
+        // No sessions with messages left, create a fresh state
+        setCurrentSessionId(null);
+        currentSessionIdRef.current = null;
+        setMessages([]);
+        setPrompt("");
       }
     }
   };
@@ -443,7 +531,7 @@ function App() {
                                 </>
                               )}
                               {role === ROLE.assistant &&
-                                (isLastMessage && isGenerating ? null : (
+                                (isLastMessage && isGenerating && generatingSessionId === currentSessionId ? null : (
                                   <Flex py="3" gap="4">
                                     <IconButton
                                       tooltip="Read"
@@ -462,23 +550,26 @@ function App() {
                       </Box>
                     );
                   })}
-                  {isLoading && loadedSize > 0 && (
+                  {isLoading && loadedSize > 0 && parseFloat(loadingProgressDisplayString) < 100 && (
                     <Text as="div" size="2">
                       <b>{loadingProgressDisplayString}</b> Downloading model file {modelSizeDisplayString} to your
                       computer. This happens only the first time you load the model.
                     </Text>
                   )}
-                  <Loader isLoading={isGenerating && !isLoading} />
+                  <Loader isLoading={isGenerating && generatingSessionId === currentSessionId && !isLoading} />
                 </ScrollArea>
               ) : (
                 <Box className="welcome-text" pb="5">
-                  {isLoading && loadedSize > 0 ? (
+                  {isLoading && loadedSize > 0 && parseFloat(loadingProgressDisplayString) < 100 ? (
                     <Flex direction="column" align="center" gap="4">
                       <Text size="6" align="center" asChild>
                         <h1>Please wait while the model loads...</h1>
                       </Text>
                       <Text size="3" color="gray" align="center">
                         <b>{loadingProgressDisplayString}</b> Downloading model {modelSizeDisplayString}
+                      </Text>
+                      <Text size="2" color="gray" align="center">
+                        It loads only once. It will be cached on your web server.
                       </Text>
                       <Loader isLoading={true} />
                     </Flex>
