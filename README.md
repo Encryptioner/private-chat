@@ -2,11 +2,9 @@
 
 ## Download and run local LLMs within your browser.
 
-[preview](https://github.com/user-attachments/assets/d7e00366-d78f-4c8e-ae66-fd8319d1375d)
+Live site: https://encryptioner.github.io/in-browser-llm-inference/
 
-Live site: https://private-ai-chat.vercel.app
-
-Blog post: https://dev.to/dchif/run-your-offline-ai-chat-assistant-pure-browser-zero-backend-1e48
+Blog post: 
 
 ## Features
 
@@ -35,13 +33,22 @@ pnpm run dev
 
 ### Building for Production
 
+**GitHub Pages (Default):**
 ```bash
-# Build main app and embed script
+# Build for GitHub Pages
 pnpm run build
 
 # Preview production build
 pnpm run preview
 ```
+
+**Standalone Domain:**
+```bash
+# Build for custom domain
+DEPLOYMENT_TYPE=standalone pnpm run build
+```
+
+The application automatically detects the deployment environment and adjusts URLs accordingly.
 
 ## Embed Integration
 
@@ -53,7 +60,7 @@ Just add one script tag - no setup required! A floating chat button appears auto
 <script 
   id="aiChatEmbedScript" 
   defer 
-  src="https://username.github.io/repository-name/embed.js">
+  src="https://encryptioner.github.io/in-browser-llm-inference/embed.js">
 </script>
 <!-- That's it! Floating chat widget appears automatically -->
 ```
@@ -66,7 +73,7 @@ If you want the chat to load in a specific location:
 <script 
   id="aiChatEmbedScript" 
   defer 
-  src="https://username.github.io/repository-name/embed.js">
+  src="https://encryptioner.github.io/in-browser-llm-inference/embed.js">
 </script>
 
 <!-- Chat loads automatically here -->
@@ -82,7 +89,7 @@ If you want the chat to load in a specific location:
 <script 
   id="aiChatEmbedScript" 
   defer 
-  src="https://username.github.io/repository-name/embed.js">
+  src="https://encryptioner.github.io/in-browser-llm-inference/embed.js">
 </script>
 
 <script>
@@ -123,7 +130,7 @@ Push to `main` branch - GitHub Actions automatically:
 - Builds the application
 - Downloads models
 - Deploys to GitHub Pages
-- Makes embed script available at: `https://username.github.io/repository-name/embed.js`
+- Makes embed script available at: `https://encryptioner.github.io/in-browser-llm-inference/embed.js`
 
 ### Manual Deployment
 
@@ -146,4 +153,5 @@ Models are automatically cached in browser for offline use.
 - [Wllama](https://github.com/ngxson/wllama)
 - SmolLm - [HuggingFace](https://huggingface.co/HuggingFaceTB)
 - Llama 3.2 - [Meta](https://www.llama.com/)
+- [Daniel Chifamba](https://dev.to/dchif/run-your-offline-ai-chat-assistant-pure-browser-zero-backend-1e48)
 
