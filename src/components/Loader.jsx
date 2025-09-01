@@ -4,6 +4,7 @@ function Loader({ isLoading }) {
   if (!isLoading) {
     return null;
   }
+
   return <div className="chat-loader" />;
 }
 Loader.propTypes = {
