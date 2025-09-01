@@ -15,6 +15,10 @@
   height: 65vh;
 }
 
+.messages-container.embedded {
+  height: calc(100vh - 160px);
+}
+
 :root {
   --color-accent-3: #f0f0f0; /* Replace with your desired color */
   --color-hover: #e0e0e0;    /* Replace with your desired hover color */

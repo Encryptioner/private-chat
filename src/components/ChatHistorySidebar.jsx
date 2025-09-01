@@ -148,14 +148,16 @@ function ChatHistorySidebar({
                         </IconButton>
                       </Flex>
                     </Flex>
-                    <Text size="1" color="gray">
-                      {new Date(session.updatedAt).toLocaleDateString()}
-                    </Text>
-                    {session.messages.length > 0 && (
+                    <Flex justify="between" align="center" width="100%">
                       <Text size="1" color="gray">
-                        {session.messages.length} messages
+                        {new Date(session.updatedAt).toLocaleDateString()}
                       </Text>
-                    )}
+                      {session.messages.length > 0 && (
+                        <Text size="1" color="gray">
+                          {session.messages.length} messages
+                        </Text>
+                      )}
+                    </Flex>
                   </Flex>
                 )}
               </Box>

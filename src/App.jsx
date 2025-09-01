@@ -118,11 +118,19 @@ function App() {
     [messages]
   );
 
+  const [isEmbedded, setIsEmbedded] = useState(false);
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const systemParam = urlParams.get("system");
     if (systemParam) {
       setCustomSystemMessage(decodeURIComponent(systemParam));
+    }
+
+    // Check if we're in embedded mode
+    const embeddedParam = urlParams.get("embedded");
+    if (embeddedParam === "true") {
+      setIsEmbedded(true);
     }
 
     const sessions = loadChatSessions();
@@ -353,10 +361,11 @@ function App() {
         onClose={() => setIsSidebarOpen(false)}
       />
       <Box
-        p={{ initial: "1", md: "3" }}
+        p={isEmbedded ? "2" : { initial: "1", md: "3" }}
         style={{
           marginLeft: !isMobile && isSidebarOpen ? "300px" : "0",
           transition: "margin-left 0.3s ease",
+          height: isEmbedded ? "100vh" : "auto",
         }}>
         <Flex direction="column">
           <Flex direction="row" align="center" justify="between" asChild>
@@ -401,7 +410,7 @@ function App() {
                 <ScrollArea
                   type="hover"
                   scrollbars="vertical"
-                  className="messages-container"
+                  className={`messages-container${isEmbedded ? " embedded" : ""}`}
                   ref={messagesContainerRef}>
                   {messages.map(({ content, role, id }, index) => {
                     const isLastMessage = index === messages.length - 1;
@@ -516,19 +525,21 @@ function App() {
                 </TextField.Slot>
               </TextField.Root>
             </Box>
-            <Box pt="2" pb="4">
-              <Text as="div" align="center" size="1" color="gray">
-                &#9888; Models can make mistakes, always double-check responses. &bull;&nbsp;
-                <Link href={selectedModel.url} target="_blank" rel="noopener" download highContrast>
-                  Model
-                </Link>
-                &nbsp;&bull;&nbsp;
-                <Link href={selectedModel.license} target="_blank" rel="noopener" highContrast>
-                  License
-                </Link>
-              </Text>
-            </Box>
-            <Footer />
+            {!isEmbedded && (
+              <Box pt="2" pb="4">
+                <Text as="div" align="center" size="1" color="gray">
+                  &#9888; Models can make mistakes, always double-check responses. &bull;&nbsp;
+                  <Link href={selectedModel.url} target="_blank" rel="noopener" download highContrast>
+                    Model
+                  </Link>
+                  &nbsp;&bull;&nbsp;
+                  <Link href={selectedModel.license} target="_blank" rel="noopener" highContrast>
+                    License
+                  </Link>
+                </Text>
+              </Box>
+            )}
+            {!isEmbedded && <Footer />}
           </Container>
         </Flex>
       </Box>

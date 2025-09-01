@@ -5,14 +5,14 @@ import path from "path";
 
 // Plugin to serve embed.js and service worker with correct MIME types
 const serveStaticFiles = () => ({
-  name: 'serve-static-files',
+  name: "serve-static-files",
   configureServer(server) {
     // Serve embed.js from dist directory
-    server.middlewares.use('/embed.js', (req, res, next) => {
-      const embedPath = path.resolve('dist/embed.js');
+    server.middlewares.use("/embed.js", (req, res, next) => {
+      const embedPath = path.resolve("dist/embed.js");
       if (fs.existsSync(embedPath)) {
-        res.setHeader('Content-Type', 'application/javascript');
-        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader("Content-Type", "application/javascript");
+        res.setHeader("Access-Control-Allow-Origin", "*");
         res.end(fs.readFileSync(embedPath));
       } else {
         res.statusCode = 404;
@@ -21,18 +21,18 @@ const serveStaticFiles = () => ({
     });
 
     // Serve service worker with correct MIME type
-    server.middlewares.use('/sw.js', (req, res, next) => {
-      const swPath = path.resolve('public/sw.js');
+    server.middlewares.use("/sw.js", (req, res, next) => {
+      const swPath = path.resolve("public/sw.js");
       if (fs.existsSync(swPath)) {
-        res.setHeader('Content-Type', 'application/javascript');
-        res.setHeader('Service-Worker-Allowed', '/');
+        res.setHeader("Content-Type", "application/javascript");
+        res.setHeader("Service-Worker-Allowed", "/");
         res.end(fs.readFileSync(swPath));
       } else {
         res.statusCode = 404;
-        res.end('Service worker not found.');
+        res.end("Service worker not found.");
       }
     });
-  }
+  },
 });
 
 // https://vitejs.dev/config/

@@ -29,16 +29,17 @@ class EmbedScript {
   // Create iframe to load the chat app
   _createIframe(publicPath: string): HTMLIFrameElement {
     const iframe = document.createElement('iframe');
-    iframe.src = publicPath;
+    iframe.src = `${publicPath}?embedded=true`;
     iframe.style.width = '100%';
-    iframe.style.height = '500px';
-    iframe.style.border = '1px solid #e2e8f0';
-    iframe.style.borderRadius = '8px';
+    iframe.style.height = '100%';
+    iframe.style.border = 'none';
+    iframe.style.borderRadius = '0';
     iframe.style.backgroundColor = 'white';
+    iframe.style.display = 'block';
     
     // Allow necessary permissions for WebAssembly
     iframe.allow = 'cross-origin-isolated';
-    iframe.sandbox = 'allow-scripts allow-same-origin allow-forms';
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
     
     return iframe;
   }
