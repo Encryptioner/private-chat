@@ -70,6 +70,9 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [speechRecognition, setSpeechRecognition] = useState(null);
+  const [customSystemMessage, setCustomSystemMessage] = useState(
+    "You are a helpful assistant. Keep responses as concise as possible. Avoid long explanations."
+  );
   const selectedModel = localModelFiles.length
     ? { name: localModelFiles[0].name, url: "file", license: "" }
     : PRESET_MODELS[modelId];
@@ -116,6 +119,12 @@ function App() {
   );
 
   useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const systemParam = urlParams.get("system");
+    if (systemParam) {
+      setCustomSystemMessage(decodeURIComponent(systemParam));
+    }
+
     const sessions = loadChatSessions();
     setChatSessions(sessions);
 
@@ -199,7 +208,7 @@ function App() {
     const formattedChat = await formatChat(wllama, [
       {
         role: ROLE.system,
-        content: "You are a helpful assistant. Keep responses as concise as possible. Avoid long explanations.",
+        content: customSystemMessage,
       },
       ...latestMessages,
       { role: ROLE.user, content: prompt.trim(), id: messageIdGenerator.next().value },
