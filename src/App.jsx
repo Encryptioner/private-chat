@@ -89,6 +89,7 @@ function App() {
     const options = {
       useCache: true,
       allowOffline: true,
+      n_ctx: 4096, // Increase context window to handle longer conversations and larger prompts
       progressCallback: (progress) =>
         setModelState((current) => ({
           ...current,
@@ -125,12 +126,21 @@ function App() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const systemParam = urlParams.get("system");
+    const domainParam = urlParams.get("domain");
+    const embeddedParam = urlParams.get("embedded");
+
+    // eslint-disable-next-line no-console
+    console.log({
+      systemParam,
+      domainParam,
+      embeddedParam,
+    });
+
     if (systemParam) {
       setCustomSystemMessage(decodeURIComponent(systemParam));
     }
 
     // Check if we're in embedded mode
-    const embeddedParam = urlParams.get("embedded");
     if (embeddedParam === "true") {
       setIsEmbedded(true);
     }
@@ -577,7 +587,7 @@ function App() {
                 onKeyDown={handleOnPressEnter}
                 onChange={handlePromptInputChange}
                 placeholder="Enter your prompt here"
-                maxLength={512}
+                maxLength={4096}
                 disabled={isBusy}
                 variant="soft"
                 radius="full"
