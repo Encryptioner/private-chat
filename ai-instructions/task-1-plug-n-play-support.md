@@ -134,3 +134,36 @@ Check this for reference: https://github.com/Encryptioner/markdown-to-slide/blob
     at Wllama.<anonymous> (@wllama_wllama_esm.js?v=827a6848:2521:25)
     at Generator.next (<anonymous>)
     at fulfilled (@wllama_wllama_esm.js?v=827a6848:29:24)
+
+### Comments
+1. The error is yet not fixed. It doesn't happen when I load the website only. It happens, when the website is loaded as chatbot in `test-floating.html`
+   @wllama_wllama_esm.js?v=827a6848:2565 Uncaught (in promise) WllamaError: Module is already initialized
+    at Wllama.<anonymous> (@wllama_wllama_esm.js?v=827a6848:2565:15)
+    at Generator.next (<anonymous>)
+    at @wllama_wllama_esm.js?v=827a6848:42:61
+    at new Promise (<anonymous>)
+    at __async (@wllama_wllama_esm.js?v=827a6848:26:10)
+    at Wllama.loadModel (@wllama_wllama_esm.js?v=827a6848:2554:12)
+    at Wllama.<anonymous> (@wllama_wllama_esm.js?v=827a6848:2521:25)
+    at Generator.next (<anonymous>)
+    at fulfilled (@wllama_wllama_esm.js?v=827a6848:29:24)Understand this error
+2. Added this command laterYes. I've already loaded the http://localhost:5173/ in different tab. And this can happen. This same chatbot can be used 
+  individually. And also in multiple website
+
+
+## Instruction List 5
+
+### Instructions
+1. This error now shows. And when chatting, the chat keeps loading and not working.
+   wllama.js:65 Uncaught (in promise) TypeError: wllamaInstance.getChatTemplate is not a function
+    at formatChat (wllama.js:65:48)
+    at submitPrompt (App.jsx:199:33)
+    at handleOnPressEnter (App.jsx:216:58)
+
+
+## Instruction List 6
+
+### Instructions. The error is still present
+1. The error is still present. wllama.js:65 Uncaught (in promise) TypeError: wllamaInstance.getChatTemplate is not a function
+    at formatChat (wllama.js:65:48)
+    at submitPrompt (App.jsx:199:33)

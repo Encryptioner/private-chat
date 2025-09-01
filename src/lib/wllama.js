@@ -62,21 +62,209 @@ export const PRESET_MODELS = Object.fromEntries(
 );
 
 export const formatChat = async (wllamaInstance, messages) => {
-  const template = new Template(wllamaInstance.getChatTemplate() ?? CHAT_TEMPLATE);
-  return template.render({
-    messages,
-    bos_token: await wllamaInstance.detokenize([wllamaInstance.getBOS()]),
-    eos_token: await wllamaInstance.detokenize([wllamaInstance.getEOS()]),
-    add_generation_prompt: true,
-  });
+  // Check if wllamaInstance is valid
+  if (!wllamaInstance) {
+    console.warn("formatChat called with null/undefined wllamaInstance, using fallback");
+    const template = new Template(CHAT_TEMPLATE);
+    return template.render({
+      messages,
+      bos_token: "",
+      eos_token: "",
+      add_generation_prompt: true,
+    });
+  }
+
+  // Check if required methods exist
+  if (typeof wllamaInstance.getChatTemplate !== "function") {
+    console.warn("formatChat: getChatTemplate method not found, using fallback");
+    const template = new Template(CHAT_TEMPLATE);
+    return template.render({
+      messages,
+      bos_token: "",
+      eos_token: "",
+      add_generation_prompt: true,
+    });
+  }
+
+  try {
+    const chatTemplate = wllamaInstance.getChatTemplate();
+    const template = new Template(chatTemplate ?? CHAT_TEMPLATE);
+
+    let bosToken = "";
+    let eosToken = "";
+
+    // Safely get BOS/EOS tokens
+    try {
+      if (typeof wllamaInstance.getBOS === "function" && typeof wllamaInstance.detokenize === "function") {
+        bosToken = await wllamaInstance.detokenize([wllamaInstance.getBOS()]);
+      }
+    } catch (e) {
+      console.warn("Failed to get BOS token:", e.message);
+    }
+
+    try {
+      if (typeof wllamaInstance.getEOS === "function" && typeof wllamaInstance.detokenize === "function") {
+        eosToken = await wllamaInstance.detokenize([wllamaInstance.getEOS()]);
+      }
+    } catch (e) {
+      console.warn("Failed to get EOS token:", e.message);
+    }
+
+    return template.render({
+      messages,
+      bos_token: bosToken,
+      eos_token: eosToken,
+      add_generation_prompt: true,
+    });
+  } catch (error) {
+    console.error("formatChat error:", error);
+    // Fallback: use default template if instance methods fail
+    console.log("Using fallback template rendering due to error");
+    const template = new Template(CHAT_TEMPLATE);
+    return template.render({
+      messages,
+      bos_token: "",
+      eos_token: "",
+      add_generation_prompt: true,
+    });
+  }
 };
 
 let wllamaInstance = null;
 
+// Wrapper class to handle shared Wllama state
+class WllamaWrapper {
+  constructor(wllama) {
+    this.wllama = wllama;
+    this.isModelLoaded = false;
+    this.currentModelUrl = null;
+    this.loadPromise = null;
+  }
+
+  async loadModel(files, options) {
+    // If already loading, wait for it
+    if (this.loadPromise) {
+      return this.loadPromise;
+    }
+
+    // If same model is already loaded, skip
+    if (this.isModelLoaded && this.currentModelUrl === "local") {
+      console.log("Model already loaded, skipping...");
+      return;
+    }
+
+    this.loadPromise = (async () => {
+      try {
+        if (this.isModelLoaded) {
+          await this.wllama.exit();
+          this.isModelLoaded = false;
+        }
+        await this.wllama.loadModel(files, options);
+        this.isModelLoaded = true;
+        this.currentModelUrl = "local";
+      } catch (error) {
+        if (error.message.includes("already initialized") || error.message.includes("Module is already initialized")) {
+          console.log("Module already initialized, assuming model is loaded");
+          this.isModelLoaded = true;
+          this.currentModelUrl = "local";
+          return; // Return early to avoid throwing
+        } else {
+          throw error;
+        }
+      } finally {
+        this.loadPromise = null;
+      }
+    })();
+
+    return this.loadPromise;
+  }
+
+  async loadModelFromUrl(url, options) {
+    // If already loading, wait for it
+    if (this.loadPromise) {
+      return this.loadPromise;
+    }
+
+    // If same model is already loaded, skip
+    if (this.isModelLoaded && this.currentModelUrl === url) {
+      console.log("Model already loaded, skipping...");
+      return;
+    }
+
+    this.loadPromise = (async () => {
+      try {
+        if (this.isModelLoaded) {
+          await this.wllama.exit();
+          this.isModelLoaded = false;
+        }
+        await this.wllama.loadModelFromUrl(url, options);
+        this.isModelLoaded = true;
+        this.currentModelUrl = url;
+      } catch (error) {
+        if (error.message.includes("already initialized") || error.message.includes("Module is already initialized")) {
+          console.log("Module already initialized, assuming model is loaded");
+          this.isModelLoaded = true;
+          this.currentModelUrl = url;
+          return; // Return early to avoid throwing
+        } else {
+          throw error;
+        }
+      } finally {
+        this.loadPromise = null;
+      }
+    })();
+
+    return this.loadPromise;
+  }
+
+  async exit() {
+    if (this.loadPromise) {
+      await this.loadPromise;
+    }
+
+    if (this.isModelLoaded) {
+      try {
+        await this.wllama.exit();
+      } catch (error) {
+        console.warn("Error during exit, ignoring:", error.message);
+      }
+      this.isModelLoaded = false;
+      this.currentModelUrl = null;
+    }
+  }
+
+  // Proxy all other methods to the underlying wllama instance
+  createCompletion(...args) {
+    return this.wllama.createCompletion(...args);
+  }
+
+  createChatCompletion(...args) {
+    return this.wllama.createChatCompletion(...args);
+  }
+
+  getChatTemplate() {
+    return this.wllama.getChatTemplate();
+  }
+
+  detokenize(...args) {
+    return this.wllama.detokenize(...args);
+  }
+
+  getBOS() {
+    return this.wllama.getBOS();
+  }
+
+  getEOS() {
+    return this.wllama.getEOS();
+  }
+}
+
 export const getWllamaInstance = () => {
   if (!wllamaInstance) {
+    let rawWllama;
+
     try {
-      wllamaInstance = new Wllama(
+      rawWllama = new Wllama(
         {
           "single-thread/wllama.wasm": wllamaSingle,
           "multi-thread/wllama.wasm": wllamaMulti,
@@ -84,14 +272,62 @@ export const getWllamaInstance = () => {
         { suppressNativeLog: true }
       );
     } catch (error) {
-      // If module is already initialized, check if there's a global instance
-      if (error.message.includes("already initialized") && window.wllamaGlobalInstance) {
-        console.warn("Using existing global Wllama instance due to module already initialized");
-        wllamaInstance = window.wllamaGlobalInstance;
+      // If module is already initialized, try to find the existing instance
+      if (error.message.includes("already initialized")) {
+        console.log("WebAssembly module already initialized, attempting to reuse existing instance");
+
+        // Try to find existing Wllama instance from global scope or parent window
+        let existingWllama = null;
+
+        // Check if there's already a global instance
+        if (window.wllamaGlobalInstance && window.wllamaGlobalInstance.wllama) {
+          existingWllama = window.wllamaGlobalInstance.wllama;
+        }
+
+        // Check parent window if we're in iframe (same-origin only)
+        if (!existingWllama && window.parent !== window) {
+          try {
+            if (window.parent.wllamaGlobalInstance && window.parent.wllamaGlobalInstance.wllama) {
+              existingWllama = window.parent.wllamaGlobalInstance.wllama;
+            }
+          } catch (e) {
+            // Cross-origin access blocked, ignore
+          }
+        }
+
+        if (existingWllama) {
+          console.log("Found existing Wllama instance, sharing it");
+          rawWllama = existingWllama;
+        } else {
+          // Fallback: create a mock object that matches Wllama's interface
+          console.log("No existing instance found, creating mock for compatibility");
+          rawWllama = {
+            loadModel: async () => {
+              throw new Error("Module is already initialized");
+            },
+            loadModelFromUrl: async () => {
+              throw new Error("Module is already initialized");
+            },
+            exit: async () => {},
+            createCompletion: async () => {
+              throw new Error("WebAssembly module conflict - chat not available in iframe context");
+            },
+            createChatCompletion: async () => {
+              throw new Error("WebAssembly module conflict - chat not available in iframe context");
+            },
+            // Add methods needed by formatChat
+            getChatTemplate: () => CHAT_TEMPLATE,
+            detokenize: async () => "",
+            getBOS: () => 1, // Common BOS token ID
+            getEOS: () => 2, // Common EOS token ID
+          };
+        }
       } else {
         throw error;
       }
     }
+
+    wllamaInstance = new WllamaWrapper(rawWllama);
 
     // Store globally for iframe access
     if (!window.wllamaGlobalInstance) {
