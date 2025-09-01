@@ -282,7 +282,9 @@ function App() {
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   const handleSpeechToText = () => {
-    if (!speechRecognition) return;
+    if (!speechRecognition) {
+      return;
+    }
 
     if (isRecording) {
       speechRecognition.stop();
