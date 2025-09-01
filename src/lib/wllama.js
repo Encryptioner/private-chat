@@ -71,11 +71,33 @@ export const formatChat = async (wllamaInstance, messages) => {
   });
 };
 
-export const getWllamaInstance = () =>
-  new Wllama(
-    {
-      "single-thread/wllama.wasm": wllamaSingle,
-      "multi-thread/wllama.wasm": wllamaMulti,
-    },
-    { suppressNativeLog: true }
-  );
+let wllamaInstance = null;
+
+export const getWllamaInstance = () => {
+  if (!wllamaInstance) {
+    try {
+      wllamaInstance = new Wllama(
+        {
+          "single-thread/wllama.wasm": wllamaSingle,
+          "multi-thread/wllama.wasm": wllamaMulti,
+        },
+        { suppressNativeLog: true }
+      );
+    } catch (error) {
+      // If module is already initialized, check if there's a global instance
+      if (error.message.includes("already initialized") && window.wllamaGlobalInstance) {
+        console.warn("Using existing global Wllama instance due to module already initialized");
+        wllamaInstance = window.wllamaGlobalInstance;
+      } else {
+        throw error;
+      }
+    }
+
+    // Store globally for iframe access
+    if (!window.wllamaGlobalInstance) {
+      window.wllamaGlobalInstance = wllamaInstance;
+    }
+  }
+
+  return wllamaInstance;
+};

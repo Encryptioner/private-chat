@@ -2,6 +2,20 @@
 
 This guide explains how to test the embed functionality in both development and production environments.
 
+## How It Works
+
+The embed script now works as a true **plug-and-play** solution:
+
+1. **Automatic Detection**: The script looks for a div with id `ai-chat-embed-div`
+2. **Fallback Creation**: If no div is found, it automatically creates a floating chat widget
+3. **Zero Configuration**: No manual HTML elements or styling required
+4. **Cross-Site Compatible**: Works on any website with just one script tag
+
+### Behavior Modes
+
+- **Inline Mode**: If `<div id="ai-chat-embed-div"></div>` exists → chat loads directly in that div
+- **Floating Mode**: If no div exists → automatic floating chat button appears in bottom-right corner
+
 ## Development Testing
 
 ### Prerequisites
@@ -27,7 +41,25 @@ This guide explains how to test the embed functionality in both development and 
 
 ### Local Embed Testing
 
-#### Method 1: Simple HTML Test File
+#### Method 1: Floating Widget Test (Recommended)
+
+Create a test HTML file (`test-floating.html`):
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Floating Chat Test</title>
+</head>
+<body>
+    <h1>Test Page</h1>
+    <p>No chat div needed - widget appears automatically!</p>
+    
+    <script id="aiChatEmbedScript" defer src="http://localhost:5173/embed.js"></script>
+</body>
+</html>
+```
+
+#### Method 2: Traditional Div Test
 
 Create a test HTML file (`test-embed.html`):
 ```html
@@ -54,13 +86,14 @@ Create a test HTML file (`test-embed.html`):
 </html>
 ```
 
-#### Method 2: Test with Another Local Project
+#### Method 3: Test with Another Local Project
 
 1. Start the chat app: `pnpm run dev` (runs on port 5173)
 2. In another project, add the embed script:
    ```html
    <script id="aiChatEmbedScript" defer src="http://localhost:5173/embed.js"></script>
    ```
+3. **No additional setup required** - floating chat widget appears automatically!
 
 ### Development Server Configuration
 
@@ -108,12 +141,28 @@ The production deployment uses a service worker to inject necessary headers for 
 
 ## Integration Examples
 
-### Basic Integration
+### Basic Integration (Automatic Floating Widget)
 ```html
 <!DOCTYPE html>
 <html>
 <body>
-    <!-- Chat loads automatically in this div -->
+    <!-- NO div needed - chat widget appears automatically -->
+    
+    <script 
+        id="aiChatEmbedScript" 
+        defer 
+        src="https://username.github.io/repository-name/embed.js">
+    </script>
+</body>
+</html>
+```
+
+### Integration with Custom Div (Optional)
+```html
+<!DOCTYPE html>
+<html>
+<body>
+    <!-- Chat loads directly in this div if present -->
     <div id="ai-chat-embed-div"></div>
     
     <script 
@@ -246,15 +295,22 @@ export default function ChatIntegration() {
 5. **Chat doesn't load**
    - Check browser console for errors
    - Verify embed script URL is accessible
-   - Ensure target div exists in DOM
+   - In inline mode: Ensure target div exists in DOM
+   - In floating mode: Check bottom-right corner for chat button
    - Wait a few seconds for the embed script to load
 
-6. **WebAssembly errors**
+6. **Floating widget not appearing**
+   - Verify no div with id `ai-chat-embed-div` exists (this forces inline mode)
+   - Check browser console for JavaScript errors
+   - Ensure `document.body` exists when script runs
+   - Check for CSS conflicts with `z-index: 9999`
+
+7. **WebAssembly errors**
    - Check if COOP/COEP headers are present
    - Verify service worker is registered and active
    - Test in different browsers
 
-7. **Cross-origin issues**
+8. **Cross-origin issues**
    - Embed uses iframe to isolate cross-origin content
    - Verify iframe permissions are set correctly
    - Check for Content Security Policy restrictions
@@ -277,10 +333,21 @@ window.addEventListener('load', () => {
 
 ## Performance Considerations
 
-- The embed script is small (~5KB minified)
-- Initial model download happens only once per user
-- Models are cached in browser for offline use
+- The embed script is small (~6KB minified)
+- Initial model download happens once per origin (each website gets its own cache)
+- Models are cached in browser for offline use within each iframe context
 - Iframe isolation prevents performance impact on parent page
+- Enhanced floating widget with majority screen space (90% viewport width/height)
+
+### Cross-Site Caching Behavior
+
+Each embedded instance has its own storage context:
+- **localStorage**: Models and settings are cached per iframe origin
+- **Service Worker**: Each iframe registers its own service worker for caching
+- **Security**: This isolation prevents cross-site data leakage
+- **Impact**: Models may need to be re-downloaded when embedded on different domains
+
+This is expected security behavior and ensures user privacy.
 
 ## Security Notes
 

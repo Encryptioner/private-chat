@@ -80,6 +80,7 @@ Check this for reference: https://github.com/Encryptioner/markdown-to-slide/blob
 1. The service worker error is not present now. Good work.
 2. The issue related to validate dom nesting in this project still exist. It could be existing issue. Not working on that.
 3. Found issue in loading chat app in `markdown-to-slide`. Have to fix that
+4. Compacted AI chat history. You may need to read this file fully again 
 
 
 ## Instruction List 3
@@ -96,3 +97,40 @@ Check this for reference: https://github.com/Encryptioner/markdown-to-slide/blob
     1. If u want to load the chat assistant later in your chosen div id, ensure there is a html `div` and assign an id to it. For example:
     ```
     <div id="ai-mate-chat-embed-div-2" />
+3. If u have to update embed script and other docs do it.
+4. Ensure it is production grade and easy to integrate in any website
+
+
+### Comments
+1. Design is updated. However, still has issue.
+
+
+## Instruction List 4
+
+### Instructions
+1. I am testing wth `test-floating.html` button. When I load the chat interface, it shows, this error. However, it doesn't show error, when loading the website `http://localhost:5173`
+   @wllama_wllama_esm.js?v=827a6848:2565 Uncaught (in promise) WllamaError: Module is already initialized
+    at Wllama.<anonymous> (@wllama_wllama_esm.js?v=827a6848:2565:15)
+    at Generator.next (<anonymous>)
+    at @wllama_wllama_esm.js?v=827a6848:42:61
+2. On click, the chat window will take majority portion of available website. So, it can viewed better. There should have option to minimize it. and load again. Ensure, after opening window from minimization.
+3. Ensure localstorage, service worker caching of model works for it when loading in any different website
+4. The chat button takes some time load, is it normal?
+
+### Comments
+1. There are some improvements. However, there is still error for `test-floating.html` & `markdown-to-slide` project.
+
+## Instruction List 4
+
+### Instructions
+1. The module is already initialized error is still there. Fix it. Though this error is not making issue in chatting. However, it would be nice to see ir gone
+   Uncaught (in promise) WllamaError: Module is already initialized
+    at Wllama.<anonymous> (@wllama_wllama_esm.js?v=827a6848:2565:15)
+    at Generator.next (<anonymous>)
+    at @wllama_wllama_esm.js?v=827a6848:42:61
+    at new Promise (<anonymous>)
+    at __async (@wllama_wllama_esm.js?v=827a6848:26:10)
+    at Wllama.loadModel (@wllama_wllama_esm.js?v=827a6848:2554:12)
+    at Wllama.<anonymous> (@wllama_wllama_esm.js?v=827a6848:2521:25)
+    at Generator.next (<anonymous>)
+    at fulfilled (@wllama_wllama_esm.js?v=827a6848:29:24)

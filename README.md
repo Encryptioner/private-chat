@@ -45,9 +45,22 @@ pnpm run preview
 
 ## Embed Integration
 
-### Basic Integration
+### Plug-and-Play (Recommended)
 
-Add this to any website to embed the chat:
+Just add one script tag - no setup required! A floating chat button appears automatically:
+
+```html
+<script 
+  id="aiChatEmbedScript" 
+  defer 
+  src="https://username.github.io/repository-name/embed.js">
+</script>
+<!-- That's it! Floating chat widget appears automatically -->
+```
+
+### Custom Div Integration
+
+If you want the chat to load in a specific location:
 
 ```html
 <script 
