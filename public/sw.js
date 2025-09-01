@@ -36,8 +36,8 @@ self.addEventListener("install", (event) => {
           }
           if (toAdd.size) await cache.addAll([...toAdd]);
           console.debug("Precached files:", toAdd);
-        } catch {
-          console.debug(e);
+        } catch (error) {
+          console.debug("Failed to load manifest:", mUrl, error);
           // try next path
         }
       }
@@ -49,9 +49,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      await Promise.all(
-        keys.filter((k) => ![APP_SHELL_CACHE, RUNTIME_CACHE, MODEL_CACHE].includes(k)).map((k) => caches.delete(k))
-      );
+      await Promise.all(keys.filter((k) => ![STATIC_CACHE, MODEL_CACHE].includes(k)).map((k) => caches.delete(k)));
       self.clients.claim();
     })()
   );
@@ -72,11 +70,34 @@ self.addEventListener("fetch", (event) => {
       (async () => {
         try {
           const net = await fetch(request);
-          safePut(STATIC_CACHE, "/index.html", net.clone());
-          return net;
-        } catch {
+          const newHeaders = new Headers(net.headers);
+          newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
+          newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
+
+          const response = new Response(net.body, {
+            status: net.status,
+            statusText: net.statusText,
+            headers: newHeaders,
+          });
+
+          safePut(STATIC_CACHE, "/index.html", response.clone());
+          return response;
+        } catch (error) {
+          console.debug("Network fetch failed, serving from cache:", error);
           const cache = await caches.open(STATIC_CACHE);
-          return (await cache.match("/index.html")) || new Response("Offline", { status: 503 });
+          const cached = await cache.match("/index.html");
+          if (cached) {
+            const newHeaders = new Headers(cached.headers);
+            newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
+            newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
+
+            return new Response(cached.body, {
+              status: cached.status,
+              statusText: cached.statusText,
+              headers: newHeaders,
+            });
+          }
+          return new Response("Offline", { status: 503 });
         }
       })()
     );
@@ -104,7 +125,8 @@ self.addEventListener("fetch", (event) => {
       try {
         const net = await fetch(request);
         return net;
-      } catch {
+      } catch (error) {
+        console.debug("Network request failed, falling back to cache:", error);
         const keys = await caches.keys();
         for (const k of keys) {
           const cache = await caches.open(k);

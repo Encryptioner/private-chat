@@ -52,6 +52,48 @@ function Markdown({ children, ...markdownProps }) {
         p({ children }) {
           return <Text as="p">{children}</Text>;
         },
+        h1({ children }) {
+          return (
+            <Text as="h1" size="6" weight="bold">
+              {children}
+            </Text>
+          );
+        },
+        h2({ children }) {
+          return (
+            <Text as="h2" size="5" weight="bold">
+              {children}
+            </Text>
+          );
+        },
+        h3({ children }) {
+          return (
+            <Text as="h3" size="4" weight="bold">
+              {children}
+            </Text>
+          );
+        },
+        h4({ children }) {
+          return (
+            <Text as="h4" size="3" weight="bold">
+              {children}
+            </Text>
+          );
+        },
+        h5({ children }) {
+          return (
+            <Text as="h5" size="2" weight="bold">
+              {children}
+            </Text>
+          );
+        },
+        h6({ children }) {
+          return (
+            <Text as="h6" size="1" weight="bold">
+              {children}
+            </Text>
+          );
+        },
         pre({ children }) {
           return (
             <Callout.Root variant="surface">
@@ -80,12 +122,6 @@ function Markdown({ children, ...markdownProps }) {
             <Code>{children}</Code>
           );
         },
-        h1: "p",
-        h2: "p",
-        h3: "p",
-        h4: "p",
-        h5: "p",
-        h6: "p",
       }}>
       {content}
     </ReactMarkdown>
