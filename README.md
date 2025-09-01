@@ -2,11 +2,9 @@
 
 ## Download and run local LLMs within your browser.
 
-[preview](https://github.com/user-attachments/assets/d7e00366-d78f-4c8e-ae66-fd8319d1375d)
+Live site: https://encryptioner.github.io/in-browser-llm-inference/
 
-Live site: https://private-ai-chat.vercel.app
-
-Blog post: https://dev.to/dchif/run-your-offline-ai-chat-assistant-pure-browser-zero-backend-1e48
+Blog post: 
 
 ## Features
 
@@ -146,4 +144,5 @@ Models are automatically cached in browser for offline use.
 - [Wllama](https://github.com/ngxson/wllama)
 - SmolLm - [HuggingFace](https://huggingface.co/HuggingFaceTB)
 - Llama 3.2 - [Meta](https://www.llama.com/)
+- [Daniel Chifamba](https://dev.to/dchif/run-your-offline-ai-chat-assistant-pure-browser-zero-backend-1e48)
 
