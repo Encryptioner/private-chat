@@ -33,13 +33,22 @@ pnpm run dev
 
 ### Building for Production
 
+**GitHub Pages (Default):**
 ```bash
-# Build main app and embed script
+# Build for GitHub Pages
 pnpm run build
 
 # Preview production build
 pnpm run preview
 ```
+
+**Standalone Domain:**
+```bash
+# Build for custom domain
+DEPLOYMENT_TYPE=standalone pnpm run build
+```
+
+The application automatically detects the deployment environment and adjusts URLs accordingly.
 
 ## Embed Integration
 
@@ -51,7 +60,7 @@ Just add one script tag - no setup required! A floating chat button appears auto
 <script 
   id="aiChatEmbedScript" 
   defer 
-  src="https://username.github.io/repository-name/embed.js">
+  src="https://encryptioner.github.io/in-browser-llm-inference/embed.js">
 </script>
 <!-- That's it! Floating chat widget appears automatically -->
 ```
@@ -64,7 +73,7 @@ If you want the chat to load in a specific location:
 <script 
   id="aiChatEmbedScript" 
   defer 
-  src="https://username.github.io/repository-name/embed.js">
+  src="https://encryptioner.github.io/in-browser-llm-inference/embed.js">
 </script>
 
 <!-- Chat loads automatically here -->
@@ -80,7 +89,7 @@ If you want the chat to load in a specific location:
 <script 
   id="aiChatEmbedScript" 
   defer 
-  src="https://username.github.io/repository-name/embed.js">
+  src="https://encryptioner.github.io/in-browser-llm-inference/embed.js">
 </script>
 
 <script>
@@ -121,7 +130,7 @@ Push to `main` branch - GitHub Actions automatically:
 - Builds the application
 - Downloads models
 - Deploys to GitHub Pages
-- Makes embed script available at: `https://username.github.io/repository-name/embed.js`
+- Makes embed script available at: `https://encryptioner.github.io/in-browser-llm-inference/embed.js`
 
 ### Manual Deployment
 

@@ -31,3 +31,35 @@ Check this for reference: https://github.com/Encryptioner/markdown-to-slide/blob
 ### Comments
 1. It failed in `Install dependencies` state in `Github actions`. Updated it manually
 2. Added package `prop-types`
+3. There is issue
+
+
+
+## Instruction List 2
+
+### Instructions
+1. The project will be deployed in github pages like `https://encryptioner.github.io/in-browser-llm-inference/embed.js"`. You should consider for production deployment. For Example: in vite config there could be below handling.
+   const isProduction = command === 'build';
+  const isDevelopment = command === 'serve';
+  
+  return {
+  base: isProduction ? '/in-browser-llm-inference/' : '/',
+2. Currently, When deployed in github pages, `https://encryptioner.github.io/in-browser-llm-inference` shows empty page.
+3. And when loaded as chatbot in other website, say `https://encryptioner.github.io/markdown-to-slide`, on chat bot load, it shows this website `https://encryptioner.github.io`.
+4. You may check the project `linkedinify`. And check how vite config is handled there.
+5. You must ensure that, we can access the website in `https://encryptioner.github.io/in-browser-llm-inference` and also can load it as chatbot in `https://encryptioner.github.io/markdown-to-slide`.
+6. Try to use constant variable and others. So that, we can change the url whenever necessary
+
+### Comments
+1. Need more update
+
+
+## Instruction List 3
+
+### Instructions
+1. It is not ensured that, the site will always load in github pages. We may later deploy it in a standalone domain. So, define the constant and functionality in a way that, we can easily change it to standalone domain
+2. Default will be github page for deployment
+
+### Comments
+1. It did some update. Need to check
+2. Updated the github workflow little bit later

@@ -20,6 +20,7 @@ export default defineConfig({
     outDir: "dist",
     assetsDir: "",
     minify: true,
+    emptyOutDir: false, // Don't clear the dist directory
   },
   define: {
     "process.env.NODE_ENV": '"production"',

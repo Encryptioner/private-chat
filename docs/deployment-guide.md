@@ -8,7 +8,36 @@ This guide covers different deployment options for the in-browser LLM inference 
 - Git repository with GitHub Actions enabled (for GitHub Pages)
 - Build environment with sufficient storage for model downloads
 
-## GitHub Pages Deployment (Recommended)
+## Deployment Type Configuration
+
+This application supports two deployment modes:
+
+1. **GitHub Pages (Default)**: Deployed to `https://username.github.io/repository-name/`
+2. **Standalone Domain**: Deployed to custom domains like `https://mydomain.com/`
+
+### Switching Between Deployment Types
+
+**For GitHub Pages (Default):**
+```bash
+# Build for GitHub Pages (default)
+pnpm run build
+
+# Or explicitly set environment variable
+DEPLOYMENT_TYPE=github-pages pnpm run build
+```
+
+**For Standalone Domain:**
+```bash
+# Build for standalone domain
+DEPLOYMENT_TYPE=standalone pnpm run build
+```
+
+**Configuration Files:**
+- Update `DEPLOYMENT_TYPE` in `src/lib/constants.js` for runtime configuration
+- Update `STANDALONE_DOMAIN` in `src/lib/constants.js` if using a custom domain
+- The embed script automatically detects the deployment type based on the domain
+
+## GitHub Pages Deployment (Default)
 
 ### Automatic Deployment
 
