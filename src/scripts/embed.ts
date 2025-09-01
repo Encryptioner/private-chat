@@ -9,12 +9,22 @@ const defaultDivId = 'ai-chat-embed-div';
 const floatingWidgetId = 'ai-chat-floating-widget';
 
 class EmbedScript {
+  private embedQueryParams: URLSearchParams = new URLSearchParams();
+  
   async _getPublicPath(): Promise<string | undefined> {
     const scriptElement = document.getElementById(embedScriptId) as HTMLScriptElement | undefined;
     const src = scriptElement?.src;
 
     if (!src) {
       return undefined;
+    }
+
+    // Extract query parameters from embed script URL
+    try {
+      const embedUrl = new URL(src);
+      this.embedQueryParams = embedUrl.searchParams;
+    } catch (error) {
+      console.warn('Failed to parse embed script URL for query parameters:', error);
     }
 
     try {
@@ -50,7 +60,17 @@ class EmbedScript {
   // Create iframe to load the chat app
   _createIframe(publicPath: string): HTMLIFrameElement {
     const iframe = document.createElement('iframe');
-    iframe.src = `${publicPath}?embedded=true`;
+    
+    // Build iframe URL with query parameters
+    const iframeUrl = new URL(publicPath);
+    iframeUrl.searchParams.set('embedded', 'true');
+    
+    // Forward query parameters from embed script to iframe
+    for (const [key, value] of this.embedQueryParams.entries()) {
+      iframeUrl.searchParams.set(key, value);
+    }
+    
+    iframe.src = iframeUrl.toString();
     iframe.style.width = '100%';
     iframe.style.height = '100%';
     iframe.style.border = 'none';
