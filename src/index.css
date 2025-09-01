@@ -15,6 +15,11 @@
   height: 65vh;
 }
 
+:root {
+  --color-accent-3: #f0f0f0; /* Replace with your desired color */
+  --color-hover: #e0e0e0;    /* Replace with your desired hover color */
+}
+
 /* Animations */
 .scale-up-center {
 	-webkit-animation: scale-up-center 0.4s cubic-bezier(0.390, 0.575, 0.565, 1.000) both;
@@ -58,5 +63,22 @@
   }
   100% {
     opacity: 1;
+  }
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .messages-container {
+    height: 60vh;
+  }
+  
+  .welcome-text {
+    padding-top: 15vh;
+  }
+
+  /* Adjust chat message padding for mobile */
+  .mobile-message {
+    padding-left: 0 !important;
+    padding-right: 0.5rem !important;
   }
 }

@@ -73,6 +73,7 @@ function App() {
   const [customSystemMessage, setCustomSystemMessage] = useState(
     "You are a helpful assistant. Keep responses as concise as possible. Avoid long explanations."
   );
+  const [isMobile, setIsMobile] = useState(false);
   const selectedModel = localModelFiles.length
     ? { name: localModelFiles[0].name, url: "file", license: "" }
     : PRESET_MODELS[modelId];
@@ -157,6 +158,13 @@ function App() {
   }, [messages, currentSessionId]);
 
   useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
     if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
@@ -183,7 +191,10 @@ function App() {
       setSpeechRecognition(recognition);
     }
 
-    return () => wllama.exit();
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      wllama.exit();
+    };
   }, []);
 
   const streamMessages = (prompt) => {
@@ -339,10 +350,15 @@ function App() {
         onSessionDelete={handleSessionDelete}
         onSessionRename={handleSessionRename}
         isOpen={isSidebarOpen}
+        isMobile={isMobile}
+        onClose={() => setIsSidebarOpen(false)}
       />
       <Box
         p={{ initial: "1", md: "3" }}
-        style={{ marginLeft: isSidebarOpen ? "300px" : "0", transition: "margin-left 0.3s ease" }}>
+        style={{
+          marginLeft: !isMobile && isSidebarOpen ? "300px" : "0",
+          transition: "margin-left 0.3s ease",
+        }}>
         <Flex direction="column">
           <Flex direction="row" align="center" justify="between" asChild>
             <header>
@@ -378,13 +394,6 @@ function App() {
                   </DropdownMenu.Item>
                 </Dropdown>
               </Flex>
-              <Box>
-                <NavLink href="https://huggingface.co/models?library=gguf&pipeline_tag=text-generation">
-                  Download Models
-                </NavLink>
-                &nbsp;&bull;&nbsp;
-                <NavLink href="https://github.com/nadchif/in-browser-llm-inference">Github</NavLink>
-              </Box>
             </header>
           </Flex>
           <Container size="2">
@@ -401,7 +410,7 @@ function App() {
                       ? content.split("</think>")
                       : ["", content];
                     return (
-                      <Box key={id} pl={role === "user" ? "9" : 0} pr="3">
+                      <Box key={id} pl={role === "user" ? "9" : 0} pr="3" className="mobile-message">
                         <Callout.Root {...getCalloutProps(role)}>
                           <Callout.Text size="3" asChild>
                             <div>
