@@ -24,6 +24,7 @@ import {
   PencilSquareIcon,
   SpeakerWaveIcon,
   Bars3Icon,
+  MicrophoneIcon,
 } from "@heroicons/react/24/outline";
 import { StopCircleIcon } from "@heroicons/react/24/solid";
 import Markdown from "./components/Markdown";
@@ -67,6 +68,8 @@ function App() {
   const [chatSessions, setChatSessions] = useState({});
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [speechRecognition, setSpeechRecognition] = useState(null);
   const selectedModel = localModelFiles.length
     ? { name: localModelFiles[0].name, url: "file", license: "" }
     : PRESET_MODELS[modelId];
@@ -144,7 +147,35 @@ function App() {
     }
   }, [messages, currentSessionId]);
 
-  useEffect(() => () => wllama.exit(), []);
+  useEffect(() => {
+    if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+
+      recognition.onresult = (event) => {
+        let transcript = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        setPrompt(transcript);
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+
+      recognition.onerror = () => {
+        setIsRecording(false);
+      };
+
+      setSpeechRecognition(recognition);
+    }
+
+    return () => wllama.exit();
+  }, []);
 
   const streamMessages = (prompt) => {
     setMessages((current) => [
@@ -249,6 +280,18 @@ function App() {
   };
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  const handleSpeechToText = () => {
+    if (!speechRecognition) return;
+
+    if (isRecording) {
+      speechRecognition.stop();
+      setIsRecording(false);
+    } else {
+      setIsRecording(true);
+      speechRecognition.start();
+    }
+  };
 
   const handleReadAloudClick = (text) => {
     if ("speechSynthesis" in window) {
@@ -422,16 +465,35 @@ function App() {
                 size="3"
                 className="no-outline">
                 <TextField.Slot side="right" pr="1">
-                  <IconButton
-                    size="2"
-                    variant="solid"
-                    title="submit"
-                    onClick={submitPrompt}
-                    disabled={shouldDisableSubmit}
-                    loading={isGenerating}
-                    highContrast>
-                    <ArrowRightIcon height="16" width="16" />
-                  </IconButton>
+                  <Flex gap="2" align="center">
+                    {speechRecognition && (
+                      <IconButton
+                        size="2"
+                        variant={isRecording ? "solid" : "ghost"}
+                        color={isRecording ? "red" : undefined}
+                        title={isRecording ? "Stop recording" : "Voice input"}
+                        onClick={handleSpeechToText}
+                        disabled={isBusy && !isRecording}>
+                        <MicrophoneIcon
+                          height="16"
+                          width="16"
+                          style={{
+                            animation: isRecording ? "pulse 1s infinite" : "none",
+                          }}
+                        />
+                      </IconButton>
+                    )}
+                    <IconButton
+                      size="2"
+                      variant="solid"
+                      title="submit"
+                      onClick={submitPrompt}
+                      disabled={shouldDisableSubmit}
+                      loading={isGenerating}
+                      highContrast>
+                      <ArrowRightIcon height="16" width="16" />
+                    </IconButton>
+                  </Flex>
                 </TextField.Slot>
               </TextField.Root>
             </Box>
