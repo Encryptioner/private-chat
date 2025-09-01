@@ -25,19 +25,19 @@ This is a browser-based AI chat assistant that runs LLMs (Large Language Models)
 
 ```bash
 # Install dependencies (also downloads default model)
-npm install
+pnpm install
 
 # Start development server with CORS headers for WebAssembly
-npm run dev
+pnpm run dev
 
 # Build for production
-npm run build
+pnpm run build
 
 # Lint code
-npm run lint
+pnpm run lint
 
 # Preview production build
-npm run preview
+pnpm run preview
 ```
 
 ## Model Management
@@ -46,7 +46,7 @@ The app supports two types of models:
 1. **Preset Models**: Defined in `src/lib/wllama.js` PRESET_MODELS, downloaded from Hugging Face
 2. **Local GGUF Files**: Users can upload their own .gguf files (max 2GB in browser)
 
-Default model (LFM2-700M) is downloaded during `npm install` to `public/models/`. Set `SKIP_DOWNLOAD_MODEL=true` to skip automatic download.
+Default model (LFM2-700M) is downloaded during `pnpm install` to `public/models/`. Set `SKIP_DOWNLOAD_MODEL=true` to skip automatic download.
 
 ## Vite Configuration
 
