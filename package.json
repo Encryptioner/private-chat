@@ -4,8 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "pnpm run build:embed && vite",
+    "dev:watch": "concurrently \"pnpm run build:embed --watch\" \"vite\"",
+    "build": "vite build && pnpm run build:embed",
+    "build:embed": "vite build --config vite.embed.config.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "postinstall": "node download-model.cjs"
@@ -16,6 +18,7 @@
     "@radix-ui/themes": "^3.1.6",
     "@wllama/wllama": "2.3.4",
     "node-fetch": "^2.7.0",
+    "prop-types": "^15.8.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",

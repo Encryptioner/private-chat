@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Embed Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        .custom-chat-button {
+            background: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .custom-chat-button:hover {
+            background: #2563eb;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status.success { background: #dcfce7; color: #166534; }
+        .status.error { background: #fee2e2; color: #dc2626; }
+        .status.info { background: #dbeafe; color: #1d4ed8; }
+    </style>
+</head>
+<body>
+    <h1>🤖 AI Chat Embed Test</h1>
+    
+    <div class="status info">
+        <strong>Instructions:</strong> 
+        <ol>
+            <li>Start the development server: <code>pnpm run dev</code></li>
+            <li>Open this file at: <code>http://localhost:5173/test-embed.html</code></li>
+            <li>The embed script should load from: <code>http://localhost:5173/embed.js</code></li>
+        </ol>
+    </div>
+
+    <div id="status-display" class="status info">
+        Loading embed script...
+    </div>
+
+    <div class="test-section">
+        <h2>Test 1: Auto-loading Chat</h2>
+        <p>The chat should load automatically below:</p>
+        <div id="ai-chat-embed-div" style="min-height: 200px; border: 1px dashed #ccc; padding: 10px;">
+            <!-- Chat loads here automatically -->
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Manual Loading</h2>
+        <p>Click the button to load chat in a custom container:</p>
+        <button id="load-chat-btn" class="custom-chat-button" disabled>
+            Load Chat in Custom Div
+        </button>
+        <div id="custom-chat-div" style="min-height: 200px; border: 1px dashed #ccc; padding: 10px; margin-top: 10px;">
+            <!-- Chat loads here when button is clicked -->
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Debug Information</h2>
+        <div id="debug-info">
+            <p><strong>Embed Script URL:</strong> <span id="script-url">-</span></p>
+            <p><strong>loadChatApp Available:</strong> <span id="load-function">-</span></p>
+            <p><strong>Service Worker:</strong> <span id="sw-status">-</span></p>
+            <p><strong>Timestamp:</strong> <span id="timestamp">-</span></p>
+        </div>
+    </div>
+
+    <!-- Embed Script -->
+    <script id="aiChatEmbedScript" defer src="http://localhost:5173/embed.js"></script>
+
+    <script>
+        const statusDisplay = document.getElementById('status-display');
+        const loadChatBtn = document.getElementById('load-chat-btn');
+        const scriptUrl = document.getElementById('script-url');
+        const loadFunction = document.getElementById('load-function');
+        const swStatus = document.getElementById('sw-status');
+        const timestamp = document.getElementById('timestamp');
+
+        // Update debug info
+        function updateDebugInfo() {
+            scriptUrl.textContent = 'http://localhost:5173/embed.js';
+            loadFunction.textContent = window.loadChatApp ? '✅ Available' : '❌ Not Available';
+            
+            // Check service worker status
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistration().then(registration => {
+                    if (registration) {
+                        swStatus.textContent = '✅ Registered';
+                    } else {
+                        swStatus.textContent = '❌ Not Registered';
+                    }
+                }).catch(() => {
+                    swStatus.textContent = '❌ Error';
+                });
+            } else {
+                swStatus.textContent = '❌ Not Supported';
+            }
+            
+            timestamp.textContent = new Date().toLocaleTimeString();
+        }
+
+        // Check for loadChatApp function
+        function checkChatAppLoaded() {
+            if (window.loadChatApp) {
+                statusDisplay.className = 'status success';
+                statusDisplay.textContent = '✅ Embed script loaded successfully! loadChatApp function is available.';
+                loadChatBtn.disabled = false;
+                updateDebugInfo();
+            } else {
+                setTimeout(checkChatAppLoaded, 100);
+            }
+        }
+
+        // Handle manual chat loading
+        loadChatBtn.onclick = function() {
+            if (window.loadChatApp) {
+                try {
+                    window.loadChatApp('custom-chat-div');
+                    loadChatBtn.textContent = 'Chat Loaded!';
+                    loadChatBtn.disabled = true;
+                } catch (error) {
+                    console.error('Error loading chat:', error);
+                    statusDisplay.className = 'status error';
+                    statusDisplay.textContent = '❌ Error loading chat: ' + error.message;
+                }
+            }
+        };
+
+        // Handle script loading errors
+        document.getElementById('aiChatEmbedScript').onerror = function() {
+            statusDisplay.className = 'status error';
+            statusDisplay.textContent = '❌ Failed to load embed script from http://localhost:5173/embed.js';
+        };
+
+        // Start checking when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDebugInfo();
+            checkChatAppLoaded();
+        });
+
+        // Update debug info every second
+        setInterval(updateDebugInfo, 1000);
+    </script>
+</body>
+</html>

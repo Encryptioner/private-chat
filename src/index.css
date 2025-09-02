@@ -13,6 +13,48 @@
 }
 .messages-container {
   height: 65vh;
+  /* Remove padding-right from here - we'll handle spacing differently */
+}
+
+.messages-container.embedded {
+  height: calc(100vh - 160px);
+  /* Remove padding-right from here - we'll handle spacing differently */
+}
+
+/* Custom scrollbar styling for messages container */
+.messages-container [data-radix-scroll-area-viewport] {
+  padding-right: 16px !important; /* Add space for scrollbar so it doesn't overlap text */
+}
+
+.messages-container [data-radix-scroll-area-scrollbar] {
+  width: 8px;
+  background: transparent;
+  border-radius: 4px;
+  position: absolute;
+  right: 4px; /* Position scrollbar with small gap from edge */
+  transition: background-color 0.3s ease;
+}
+
+.messages-container [data-radix-scroll-area-scrollbar]:hover {
+  background: var(--gray-a4);
+}
+
+.messages-container [data-radix-scroll-area-thumb] {
+  background: var(--gray-a7);
+  border-radius: 4px;
+  border: 1px solid var(--gray-a8);
+  transition: all 0.3s ease;
+  min-height: 20px; /* Ensure minimum thumb size */
+}
+
+.messages-container [data-radix-scroll-area-thumb]:hover {
+  background: var(--gray-a9);
+  border-color: var(--gray-a10);
+}
+
+:root {
+  --color-accent-3: #f0f0f0; /* Replace with your desired color */
+  --color-hover: #e0e0e0;    /* Replace with your desired hover color */
 }
 
 /* Animations */
@@ -46,4 +88,158 @@
     33%{background-size:calc(100%/3) 0%  ,calc(100%/3) 100%,calc(100%/3) 100%}
     50%{background-size:calc(100%/3) 100%,calc(100%/3) 0%  ,calc(100%/3) 100%}
     66%{background-size:calc(100%/3) 100%,calc(100%/3) 100%,calc(100%/3) 0%  }
+}
+
+/* Pulse animation for recording microphone */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Message formatting styles */
+
+/* Ensure all message content wraps properly */
+.mobile-message * {
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.mobile-message pre,
+.mobile-message code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.code-block {
+  background: var(--gray-a2);
+  border-radius: 8px;
+  margin: 12px 0;
+  overflow: hidden;
+  border: 1px solid var(--gray-a5);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.code-header {
+  background: var(--gray-a4);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-a12);
+  border-bottom: 1px solid var(--gray-a6);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.code-header::before {
+  content: "{}";
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.code-block pre {
+  margin: 0;
+  padding: 16px;
+  background: transparent;
+  color: var(--color-text);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.code-block code {
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+}
+
+.inline-code {
+  background: var(--accent-a3);
+  color: var(--accent-a12);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace;
+  font-size: 0.9em;
+  font-weight: 500;
+  border: 1px solid var(--accent-a6);
+}
+
+.message-link {
+  color: var(--accent-11);
+  text-decoration: underline;
+  word-break: break-all;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.message-link:hover {
+  color: var(--accent-12);
+  background-color: var(--accent-a3);
+  border-radius: 4px;
+  padding: 2px 4px;
+  text-decoration: none;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .messages-container {
+    height: 60vh;
+  }
+  
+  .welcome-text {
+    padding-top: 15vh;
+  }
+
+  /* Adjust chat message padding for mobile */
+  .mobile-message {
+    margin-bottom: 1.5rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    max-width: 100%;
+    overflow: hidden;
+    word-wrap: break-word;
+  }
+
+  .messages-container [data-radix-scroll-area-viewport] {
+    padding-right: 12px !important; /* Reduced space on mobile */
+  }
+
+  .messages-container [data-radix-scroll-area-scrollbar] {
+    right: 2px; /* Smaller gap on mobile */
+    width: 6px; /* Thinner scrollbar on mobile */
+  }
+
+  /* Improve code blocks for mobile */
+  .code-block {
+    margin: 8px 0;
+  }
+
+  .code-block pre {
+    padding: 12px;
+    font-size: 13px;
+    overflow-x: auto;
+  }
+
+  .code-header {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .inline-code {
+    padding: 2px 6px;
+    font-size: 0.85em;
+  }
 }
