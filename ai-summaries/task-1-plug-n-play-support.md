@@ -71,7 +71,7 @@ Successfully implemented plug-and-play chat support for the in-browser LLM infer
 ## Usage Instructions
 
 ### For Website Integration:
-1. Add embed script: `<script id="aiChatEmbedScript" defer src="https://user.github.io/in-browser-llm-inference/embed.js"></script>`
+1. Add embed script: `<script id="aiChatEmbedScript" defer src="https://user.github.io/private-chat/embed.js"></script>`
 2. Either add default div: `<div id="ai-chat-embed-div"></div>`
 3. Or manually load: `window.loadChatApp('your-custom-div-id')`
 

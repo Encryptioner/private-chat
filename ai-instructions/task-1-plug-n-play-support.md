@@ -34,7 +34,7 @@ Check this for reference: https://github.com/Encryptioner/markdown-to-slide/blob
 ## Instruction List 2
 
 ### Instructions
-1. Create a guideline in `docs` directory of `in-browser-llm-inference` project on how to test this in dev and production
+1. Create a guideline in `docs` directory of `private-chat` project on how to test this in dev and production
 2. In the `markdown-to-slide` project, there should have a constant. where I can declare the url of the chat plug and play app.If the url is empty or not a valid url, the chat button won't show
 3. Update readme of both projects to ensure one can easily test and understand how it works
 
@@ -87,7 +87,7 @@ Check this for reference: https://github.com/Encryptioner/markdown-to-slide/blob
 
 ### Instructions
 1. When I start, `markdown-to-slide` project by pnpm dev, it gives this error. `intercept-console-error.ts:44 _loadApp -> No element found for id ai-chat-widget-container`
-2. Also it should be in a way that, on the `markdown-to-slide` project, user doesn't have to create chat box/icon on his own. It should be setup using `in-browser-llm-inference` project. If necessary check `ai-chat-interface-web` project. It works as plug and play. If the embed script is present, it should work. Follow this info, in that readme
+2. Also it should be in a way that, on the `markdown-to-slide` project, user doesn't have to create chat box/icon on his own. It should be setup using `private-chat` project. If necessary check `ai-chat-interface-web` project. It works as plug and play. If the embed script is present, it should work. Follow this info, in that readme
     If u want to load the chat assistant by default, ensure there is a html `div` element present on the time website first loads by id `ai-mate-chat-embed-div`. For example:
     ```
     <div v-show="!authStore.token">

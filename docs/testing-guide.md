@@ -27,7 +27,7 @@ The embed script now works as a true **plug-and-play** solution:
 
 1. **Install Dependencies**
    ```bash
-   cd in-browser-llm-inference
+   cd private-chat
    pnpm install
    ```
 

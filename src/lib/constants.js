@@ -5,7 +5,7 @@ export const DEPLOYMENT_CONFIG = {
   DEPLOYMENT_TYPE: "github-pages", // Change this to 'standalone' for custom domain
 
   // GitHub Pages specific settings (only used when DEPLOYMENT_TYPE is 'github-pages')
-  REPO_NAME: "in-browser-llm-inference",
+  REPO_NAME: "private-chat",
   GITHUB_USERNAME: "encryptioner",
 
   // Standalone domain settings (only used when DEPLOYMENT_TYPE is 'standalone')

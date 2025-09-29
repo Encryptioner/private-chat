@@ -42,7 +42,7 @@ export default defineConfig(({ command, mode }) => {
 
   // Deployment configuration - easily switch between GitHub Pages and standalone domain
   const DEPLOYMENT_TYPE = process.env.DEPLOYMENT_TYPE || "github-pages"; // or "standalone"
-  const REPO_NAME = "in-browser-llm-inference";
+  const REPO_NAME = "private-chat";
 
   // Determine base path based on deployment type
   let basePath = "/";

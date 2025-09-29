@@ -13,7 +13,7 @@ Successfully configured the in-browser LLM inference application for production 
   - Removed the `if: github.ref == 'refs/heads/main'` condition that prevented deployment
   - Uncommented environment configuration for proper GitHub Pages deployment
 - **Updated Vite configuration** (vite.config.js):
-  - Added dynamic base path handling: `base: isProduction ? '/in-browser-llm-inference/' : '/'`
+  - Added dynamic base path handling: `base: isProduction ? '/private-chat/' : '/'`
   - Implemented production vs development environment detection
 - **Fixed embed build configuration** (vite.embed.config.js):
   - Added `emptyOutDir: false` to prevent clearing main application files when building embed script
@@ -37,7 +37,7 @@ Successfully configured the in-browser LLM inference application for production 
   - Troubleshooting section with common issues
 - **Updated README** (README.md):
   - Fixed embed script URLs to use correct GitHub Pages paths
-  - Updated all examples to use `https://encryptioner.github.io/in-browser-llm-inference/embed.js`
+  - Updated all examples to use `https://encryptioner.github.io/private-chat/embed.js`
 
 ## Step 5: Build Process Validation
 - **Tested complete build process**: `SKIP_DOWNLOAD_MODEL=true pnpm run build`
@@ -47,8 +47,8 @@ Successfully configured the in-browser LLM inference application for production 
   - Service worker: `dist/sw.js`
   - Model files: `dist/models/LFM2-700M-Q4_K_M.gguf`
 - **Build configuration works for both**:
-  - Standalone application at: `https://encryptioner.github.io/in-browser-llm-inference/`
-  - Embed integration via: `https://encryptioner.github.io/in-browser-llm-inference/embed.js`
+  - Standalone application at: `https://encryptioner.github.io/private-chat/`
+  - Embed integration via: `https://encryptioner.github.io/private-chat/embed.js`
 
 ## Key Files Modified
 
@@ -66,8 +66,8 @@ Successfully configured the in-browser LLM inference application for production 
 - **docs/deployment-guide.md**: New comprehensive deployment guide
 
 ## Production URLs
-- **Main Application**: https://encryptioner.github.io/in-browser-llm-inference/
-- **Embed Script**: https://encryptioner.github.io/in-browser-llm-inference/embed.js
+- **Main Application**: https://encryptioner.github.io/private-chat/
+- **Embed Script**: https://encryptioner.github.io/private-chat/embed.js
 - **Integration Example**: Works in https://encryptioner.github.io/markdown-to-slide
 
 ## Deployment Status

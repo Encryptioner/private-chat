@@ -44,7 +44,7 @@ class EmbedScript {
           return `${parsedUrl.origin}/${repoName}/`;
         } else {
           // Fallback for GitHub Pages
-          return parsedUrl.origin + '/in-browser-llm-inference/';
+          return parsedUrl.origin + '/private-chat/';
         }
       } else {
         // Standalone domain deployment - use origin directly

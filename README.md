@@ -2,7 +2,7 @@
 
 ## Download and run local LLMs within your browser.
 
-Live site: https://encryptioner.github.io/in-browser-llm-inference/
+Live site: https://encryptioner.github.io/private-chat/
 
 Blog post: 
 
@@ -60,7 +60,7 @@ Just add one script tag - no setup required! A floating chat button appears auto
 <script 
   id="aiChatEmbedScript" 
   defer 
-  src="https://encryptioner.github.io/in-browser-llm-inference/embed.js">
+  src="https://encryptioner.github.io/private-chat/embed.js">
 </script>
 <!-- That's it! Floating chat widget appears automatically -->
 ```
@@ -73,7 +73,7 @@ If you want the chat to load in a specific location:
 <script 
   id="aiChatEmbedScript" 
   defer 
-  src="https://encryptioner.github.io/in-browser-llm-inference/embed.js">
+  src="https://encryptioner.github.io/private-chat/embed.js">
 </script>
 
 <!-- Chat loads automatically here -->
@@ -89,7 +89,7 @@ If you want the chat to load in a specific location:
 <script 
   id="aiChatEmbedScript" 
   defer 
-  src="https://encryptioner.github.io/in-browser-llm-inference/embed.js">
+  src="https://encryptioner.github.io/private-chat/embed.js">
 </script>
 
 <script>
@@ -130,7 +130,7 @@ Push to `main` branch - GitHub Actions automatically:
 - Builds the application
 - Downloads models
 - Deploys to GitHub Pages
-- Makes embed script available at: `https://encryptioner.github.io/in-browser-llm-inference/embed.js`
+- Makes embed script available at: `https://encryptioner.github.io/private-chat/embed.js`
 
 ### Manual Deployment
 

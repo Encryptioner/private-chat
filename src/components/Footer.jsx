@@ -5,7 +5,7 @@ function Footer() {
     <Text weight="bold" align="center" color="gray" size={{ initial: "1", md: "2" }} asChild>
       <footer>
         Did you know? This chatbot runs entirely in your browser. No data is sent to any server.&nbsp;
-        <Link href="https://github.com/Encryptioner/in-browser-llm-inference" target="_blank">
+        <Link href="https://github.com/Encryptioner/private-chat" target="_blank">
           Learn more.
         </Link>
       </footer>
