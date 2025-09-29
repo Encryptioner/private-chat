@@ -1,4 +1,4 @@
-# Private AI Chat Assistant: Pure Browser, Zero Backend
+# Local Whisper - Private AI Chat Assistant: Pure Browser, Zero Backend
 
 ## Download and run local LLMs within your browser.
 
@@ -151,7 +151,7 @@ Models are automatically cached in browser for offline use.
 
 ## Credits
 - [Wllama](https://github.com/ngxson/wllama)
-- SmolLm - [HuggingFace](https://huggingface.co/HuggingFaceTB)
-- Llama 3.2 - [Meta](https://www.llama.com/)
+- [SmolLm - HuggingFace](https://huggingface.co/HuggingFaceTB)
+- [Llama 3.2 - Meta](https://www.llama.com/)
 - [Daniel Chifamba](https://dev.to/dchif/run-your-offline-ai-chat-assistant-pure-browser-zero-backend-1e48)
 
