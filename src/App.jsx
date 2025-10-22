@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CHAT_ROLE as ROLE, formatChat, getWllamaInstance, PRESET_MODELS } from "./lib/wllama";
 import { loadChatSessions, saveChatSessions, createNewSession, updateSession, deleteSession } from "./lib/chatStorage";
+import { initializeGA } from "./lib/googleAnalytics";
 import {
   Box,
   Callout,
@@ -33,6 +34,9 @@ import Loader from "./components/Loader";
 import Dropdown from "./components/Dropdown";
 import IconButton from "./components/IconButton";
 import ChatHistorySidebar from "./components/ChatHistorySidebar";
+
+// Initialize Google Analytics
+initializeGA();
 
 const ELLIPSIS = "...";
 const DEFAULT_MODEL_ID = Object.values(PRESET_MODELS).find((m) => m.default)?.name || Object.keys(PRESET_MODELS)[0];
