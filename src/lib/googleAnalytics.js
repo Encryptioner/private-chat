@@ -21,7 +21,7 @@ export const GOOGLE_ANALYTICS_CONFIG = {
    * - Admin > Data Streams > Your Stream
    * - Copy the Measurement ID
    */
-  measurementId: 'G-XXXXXXXXXX', // Replace with your GA4 Measurement ID
+  measurementId: 'G-K8S4D3R1C6', // Replace with your GA4 Measurement ID
 
   /**
    * Enable/disable Google Analytics
@@ -41,7 +41,7 @@ export const GOOGLE_ANALYTICS_CONFIG = {
    */
   get shouldTrack() {
     // Don't track if disabled or no measurement ID
-    if (!this.enabled || !this.measurementId || this.measurementId === 'G-XXXXXXXXXX') {
+    if (!this.enabled || !this.measurementId || this.measurementId === 'G-K8S4D3R1C6') {
       return false;
     }
 
@@ -63,7 +63,7 @@ export const initializeGA = () => {
     console.log('[Google Analytics] Tracking disabled');
     if (!GOOGLE_ANALYTICS_CONFIG.enabled) {
       console.log('[Google Analytics] Reason: Disabled in config');
-    } else if (!GOOGLE_ANALYTICS_CONFIG.measurementId || GOOGLE_ANALYTICS_CONFIG.measurementId === 'G-XXXXXXXXXX') {
+    } else if (!GOOGLE_ANALYTICS_CONFIG.measurementId || GOOGLE_ANALYTICS_CONFIG.measurementId === 'G-K8S4D3R1C6') {
       console.log('[Google Analytics] Reason: Invalid or missing measurement ID');
     } else if (!GOOGLE_ANALYTICS_CONFIG.trackInDevelopment) {
       console.log('[Google Analytics] Reason: Development environment');
