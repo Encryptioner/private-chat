@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CHAT_ROLE as ROLE, formatChat, getWllamaInstance, PRESET_MODELS } from "./lib/wllama";
 import { loadChatSessions, saveChatSessions, createNewSession, updateSession, deleteSession } from "./lib/chatStorage";
+import { trackEvent, sanitizeError, getEmbedHost } from "./lib/googleAnalytics";
 import {
   Box,
   Callout,
@@ -109,6 +110,13 @@ function App() {
 
   const loadModel = async () => {
     setModelState((current) => ({ ...current, isLoading: true }));
+
+    const source = localModelFiles.length ? "local_file" : "preset";
+    const modelName = localModelFiles.length ? localModelFiles[0].name : selectedModel.name;
+    const loadStartTime = Date.now();
+
+    trackEvent({ name: "model_load_started", params: { model_name: modelName, source } });
+
     const options = {
       useCache: true,
       allowOffline: true,
@@ -119,17 +127,31 @@ function App() {
           loadingProgress: progress,
         })),
     };
-    await wllama.exit();
-    if (localModelFiles.length) {
-      await wllama.loadModel(localModelFiles, options);
-    } else {
-      await wllama.loadModelFromUrl(selectedModel.url, options);
+
+    try {
+      await wllama.exit();
+      if (localModelFiles.length) {
+        await wllama.loadModel(localModelFiles, options);
+      } else {
+        await wllama.loadModelFromUrl(selectedModel.url, options);
+      }
+      trackEvent({
+        name: "model_load_completed",
+        params: { model_name: modelName, source, duration_ms: Date.now() - loadStartTime },
+      });
+      setModelState((current) => ({
+        ...modelStateDefaults,
+        isReady: true,
+        modelId: current.modelId,
+      }));
+    } catch (err) {
+      trackEvent({ name: "model_load_failed", params: { model_name: modelName, error: sanitizeError(err) } });
+      trackEvent({
+        name: "error_occurred",
+        params: { category: "model", action: "load", error: sanitizeError(err) },
+      });
+      throw err;
     }
-    setModelState((current) => ({
-      ...modelStateDefaults,
-      isReady: true,
-      modelId: current.modelId,
-    }));
   };
 
   useEffect(
@@ -166,6 +188,7 @@ function App() {
     // Check if we're in embedded mode
     if (embeddedParam === "true") {
       setIsEmbedded(true);
+      trackEvent({ name: "embed_opened", params: { host: getEmbedHost() } });
     }
 
     if (domainParam) {
@@ -227,6 +250,8 @@ function App() {
       recognition.interimResults = true;
       recognition.lang = "en-US";
 
+      let speechStartTime = 0;
+
       recognition.onresult = (event) => {
         let transcript = "";
         for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -237,10 +262,23 @@ function App() {
 
       recognition.onend = () => {
         setIsRecording(false);
+        if (speechStartTime > 0) {
+          const duration_seconds = Math.round((Date.now() - speechStartTime) / 1000);
+          trackEvent({ name: "speech_input_used", params: { duration_seconds } });
+          speechStartTime = 0;
+        }
       };
 
       recognition.onerror = () => {
         setIsRecording(false);
+        speechStartTime = 0;
+      };
+
+      // Attach start-time tracking via the start wrapper
+      const originalStart = recognition.start.bind(recognition);
+      recognition.start = () => {
+        speechStartTime = Date.now();
+        originalStart();
       };
 
       setSpeechRecognition(recognition);
@@ -324,6 +362,7 @@ function App() {
       currentSessionIdRef.current = newSession.id;
       setMessages([]);
       sessionId = newSession.id;
+      trackEvent({ name: "session_created" });
     }
 
     // Ensure the ref is up to date before streaming
@@ -337,6 +376,14 @@ function App() {
 
     if (!isReady) await loadModel();
     const latestMessages = [...messages].slice(-4);
+
+    trackEvent({
+      name: "message_sent",
+      params: { message_length: currentPrompt.trim().length, context_messages: latestMessages.length },
+    });
+
+    const generationStartTime = Date.now();
+
     const formattedChat = await formatChat(wllama, [
       {
         role: ROLE.system,
@@ -345,13 +392,38 @@ function App() {
       ...latestMessages,
       { role: ROLE.user, content: currentPrompt.trim(), id: messageIdGenerator.next().value },
     ]);
-    await wllama.createCompletion(formattedChat, {
-      nPredict: 1024,
-      sampling: { temp: 0.6, penalty_repeat: 1.5 },
-      onNewToken,
-    });
-    setIsGenerating(false);
-    setGeneratingSessionId(null);
+
+    try {
+      let finalResponseText = "";
+      const wrappedOnNewToken = (token, piece, text) => {
+        finalResponseText = text;
+        return onNewToken(token, piece, text);
+      };
+
+      await wllama.createCompletion(formattedChat, {
+        nPredict: 1024,
+        sampling: { temp: 0.6, penalty_repeat: 1.5 },
+        onNewToken: wrappedOnNewToken,
+      });
+
+      trackEvent({
+        name: "response_received",
+        params: {
+          response_length: finalResponseText.length,
+          generation_time_ms: Date.now() - generationStartTime,
+        },
+      });
+    } catch (err) {
+      trackEvent({ name: "response_failed", params: { error: sanitizeError(err) } });
+      trackEvent({
+        name: "error_occurred",
+        params: { category: "chat", action: "generation", error: sanitizeError(err) },
+      });
+      throw err;
+    } finally {
+      setIsGenerating(false);
+      setGeneratingSessionId(null);
+    }
   };
 
   const handleOnPressEnter = (e) => {
@@ -389,11 +461,15 @@ function App() {
       return;
     }
 
+    trackEvent({ name: "model_switched", params: { from_model: selectedModel.name, to_model: files[0].name } });
     setLocalModelFiles(files);
     setModelState({ ...modelStateDefaults, modelId: "file" });
   };
 
   const handleOnNewChatClick = () => {
+    if (messages.length > 0) {
+      trackEvent({ name: "chat_cleared", params: { message_count: messages.length } });
+    }
     const newSession = createNewSession();
     const updatedSessions = {
       ...chatSessions,
@@ -404,6 +480,7 @@ function App() {
     currentSessionIdRef.current = newSession.id;
     setMessages([]);
     setPrompt("");
+    trackEvent({ name: "session_created" });
     // Don't save empty sessions to localStorage
   };
 
@@ -415,10 +492,15 @@ function App() {
       setMessages(session.messages);
       setPrompt("");
       setIsSidebarOpen(false);
+      trackEvent({ name: "session_switched" });
     }
   };
 
   const handleSessionDelete = (sessionId) => {
+    const deletedSession = chatSessions[sessionId];
+    if (deletedSession) {
+      trackEvent({ name: "session_deleted", params: { message_count: deletedSession.messages.length } });
+    }
     const updatedSessions = deleteSession(chatSessions, sessionId);
     setChatSessions(updatedSessions);
 
@@ -480,18 +562,23 @@ function App() {
       if (window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
         setIsReadingAloud(false);
+        trackEvent({ name: "tts_stopped" });
         return;
       }
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.onstart = () => setIsReadingAloud(true);
+      utterance.onstart = () => {
+        setIsReadingAloud(true);
+        trackEvent({ name: "tts_played", params: { text_length: text.length } });
+      };
       utterance.onend = () => setIsReadingAloud(false);
       window.speechSynthesis.speak(utterance);
     }
   };
 
-  const getMenuOptionHandler = (modelId) => () => {
+  const getMenuOptionHandler = (newModelId) => () => {
+    trackEvent({ name: "model_switched", params: { from_model: selectedModel.name, to_model: newModelId } });
     setLocalModelFiles([]);
-    setModelState({ ...modelStateDefaults, modelId });
+    setModelState({ ...modelStateDefaults, modelId: newModelId });
   };
 
   const isBusy = isLoading || isGenerating;
