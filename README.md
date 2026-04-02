@@ -155,3 +155,12 @@ Models are automatically cached in browser for offline use.
 - [Llama 3.2 - Meta](https://www.llama.com/)
 - [Daniel Chifamba](https://dev.to/dchif/run-your-offline-ai-chat-assistant-pure-browser-zero-backend-1e48)
 
+
+
+---
+
+## Support
+
+If you find my work useful, consider supporting it:
+
+[![SupportKori](https://img.shields.io/badge/SupportKori-☕-FFDD00?style=flat-square)](https://www.supportkori.com/mirmursalinankur)
