@@ -17,7 +17,7 @@ export function buildChat(log) {
     // alloc ~1.08GB exceeds the wasm budget) — pre-existing, unrelated to RAG.
     const url = `${location.origin}/models/gemma-3-270m-it-Q8_0.gguf`;
     const t0 = performance.now();
-    await w.loadModelFromUrl(url, { n_ctx: 2048, n_threads: 1 });
+    await w.loadModelFromUrl(url, { n_ctx: 2048, n_threads: 1, n_gpu_layers: 0 });
     log(`[chat] Gemma-3-270M loaded in ${Math.round(performance.now() - t0)} ms`);
     let ok = false;
     let sample = "";

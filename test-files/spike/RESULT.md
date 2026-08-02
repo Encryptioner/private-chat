@@ -87,19 +87,8 @@ const vec = Float32Array.from((await embedder.createEmbedding({ input })).data[0
 
 ## Follow-ups / blockers (NOT gate rejections — downstream work)
 
-1. **[BLOCKER for Story 4] `createCompletion` throws on wllama 3.5.1.** `Invalid typed array length: 1163217991` on Gemma 270M completion. The model LOADS fine; the completion call fails. Likely a 3.5.1 option-shape change (`nPredict`/`sampling`/two-arg form). The app's exact call is `createCompletion(formattedString, { nPredict, sampling, onNewToken })`. **Must be migrated + verified before Story 4** wires grounded generation. Investigate the 3.x `createCompletion`/`RawCompletionParams` signature (`node_modules/@wllama/wllama/esm/types/oai-compat.d.ts`).
-2. **[REQUIRED for any 3.5.1 build] `src/lib/wllama.js` path-config migration.** 2.x:
-   ```js
-   import wllamaSingle from "@wllama/wllama/esm/single-thread/wllama.wasm?url";
-   import wllamaMulti  from "@wllama/wllama/esm/multi-thread/wllama.wasm?url";
-   new Wllama({ "single-thread/wllama.wasm": wllamaSingle, "multi-thread/wllama.wasm": wllamaMulti })
-   ```
-   → 3.x:
-   ```js
-   import wllamaWasm from "@wllama/wllama/esm/wasm/wllama.wasm?url";
-   new Wllama({ default: wllamaWasm })
-   ```
-   Affects `getWllamaInstance`. **The real app at `localhost:5173/` is currently broken on 3.5.1 until this lands** (and the createCompletion issue is resolved). Shared-dep risk is contained — only reaches portfolio-template/linkedinify when `embed.js` rebuilds + deploys (this branch does neither).
+1. **[RESOLVED] `createCompletion` on wllama 3.5.1 — works.** Initial MCP-browser runs showed `Invalid typed array length: 1163217991` (=`"GLUE"`, a worker-protocol magic misread) / hangs. **This was browser memory-fatigue in the MCP session, NOT a 3.5.1 bug.** Verified working via `test-files/spike/standalone.html` (CDN wllama 3.5.1 + stories15M, fresh browser): completion returns clean output in ~220ms. Lesson: suspect the tab before the library. Note `detokenize` was removed in v3 — `formatChat`'s `detokenize` calls are try/catch-guarded → graceful empty-BOS/EOS fallback (chat template handles its own special tokens).
+2. **[DONE] `src/lib/wllama.js` path-config migrated.** 2.x `{single-thread/multi-thread}` → 3.x `{default: wllamaWasm}`. `vite.config.js` adds `optimizeDeps.exclude: ['@wllama/wllama']` (3.x ships wasm via internal `new URL(..., import.meta.url)`; pre-bundling mishandles it). `pnpm build` passes (2284 modules, wasm emitted, embed.js built). Shared-dep risk is contained — only reaches portfolio-template/linkedinify when `embed.js` rebuilds + deploys (this branch does neither).
 3. **[Pre-existing, unrelated] LFM2-700M is unloadable in-browser.** `Invalid typed array length` on load (2.3.4) and completion (3.5.1) — Mamba/SSM state alloc (~1.08GB) exceeds the WASM budget. The app's actual default is **Gemma 3 270M** (`PRESET_MODELS` `default:true`), so LFM2 was never the working model. The `download-model.cjs` postinstall fetches a model the app doesn't default to. Out of RAG-1 scope — note for a separate cleanup.
 4. **Q4 mobile measurement** — see procedure above. Blocks the final GO/NO-GO on mobile-resident-memory.
 

@@ -1,8 +1,8 @@
 import { Wllama } from "@wllama/wllama/esm";
 import { Template } from "@huggingface/jinja";
 
-import wllamaSingle from "@wllama/wllama/esm/single-thread/wllama.wasm?url";
-import wllamaMulti from "@wllama/wllama/esm/multi-thread/wllama.wasm?url";
+// wllama 3.x ships a single unified wasm (2.x had separate single/multi-thread files).
+import wllamaWasm from "@wllama/wllama/esm/wasm/wllama.wasm?url";
 
 const CHAT_TEMPLATE =
   "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}";
@@ -264,13 +264,7 @@ export const getWllamaInstance = () => {
     let rawWllama;
 
     try {
-      rawWllama = new Wllama(
-        {
-          "single-thread/wllama.wasm": wllamaSingle,
-          "multi-thread/wllama.wasm": wllamaMulti,
-        },
-        { suppressNativeLog: true }
-      );
+      rawWllama = new Wllama({ default: wllamaWasm }, { suppressNativeLog: true });
     } catch (error) {
       // If module is already initialized, try to find the existing instance
       if (error.message.includes("already initialized")) {

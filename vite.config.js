@@ -74,5 +74,11 @@ export default defineConfig(({ command, mode }) => {
     build: {
       manifest: true,
     },
+    // wllama 3.x ships its wasm via internal `new URL(..., import.meta.url)`;
+    // pre-bundling mishandles it (serves the wasm as a JS module → MIME error).
+    // Serve the package unbundled so the wasm resolves natively.
+    optimizeDeps: {
+      exclude: ["@wllama/wllama"],
+    },
   };
 });
