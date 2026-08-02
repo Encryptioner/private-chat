@@ -7,7 +7,7 @@ import prettierRecommended from "eslint-plugin-prettier/recommended";
 
 export default tseslint
   .config(
-    { ignores: ["dist", "download-model.cjs"] },
+    { ignores: ["dist", "download-model.cjs", "test-files"] },
     {
       extends: [js.configs.recommended, ...tseslint.configs.recommended],
       files: ["**/*.{js,jsx}"],

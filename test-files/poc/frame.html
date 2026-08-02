@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>chat poc</title>
+  <style>
+    body { margin: 0; font-family: system-ui; font-size: 12px; display: flex; flex-direction: column; height: 100vh; background: #fafafa; color: #111; }
+    #log { flex: 1; overflow: auto; padding: 8px; }
+    .row { background: #fff; border: 1px solid #eee; border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; }
+    .b { font-weight: 700; }
+    .mono { font-family: ui-monospace, monospace; font-size: 11px; color: #555; word-break: break-all; }
+    .ok { color: #059669; font-weight: 700; }
+    .bad { color: #dc2626; font-weight: 700; }
+    .ptr { display: inline-block; margin-top: 6px; padding: 4px 8px; background: #2dd4bf; color: #003; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .tag { display: inline-block; padding: 1px 5px; border-radius: 3px; background: #eef; font-size: 10px; margin-right: 4px; }
+  </style>
+</head>
+<body>
+  <div id="log"></div>
+  <script type="module">
+    // Imports the PATCHED scraper directly. No transformers.js / wllama needed —
+    // the PoC proves scrape + pointer plumbing, not embeddings.
+    import { scrapeCurrentPage, chunkSections } from "../files/scraper.js";
+
+    const log = document.getElementById("log");
+    const out = (html) => {
+      const d = document.createElement("div");
+      d.className = "row";
+      d.innerHTML = html;
+      log.appendChild(d);
+      return d;
+    };
+
+    // --- PoC retrieval: keyword overlap (no embedding model) ---
+    function score(question, text) {
+      const q = new Set(question.toLowerCase().split(/\W+/).filter((w) => w.length > 2));
+      let s = 0;
+      for (const w of text.toLowerCase().split(/\W+/)) if (q.has(w)) s++;
+      return s;
+    }
+
+    // --- mirror of ragEngine.navigateToToSection (fixed). Kept inline so the PoC
+    //     runs without importing ragEngine (which pulls embeddings/siteIndex/wllama). ---
+    function navigate({ url, anchor }) {
+      let targetWin, targetDoc, currentPath;
+      try {
+        if (window.parent && window.parent !== window) {
+          targetWin = window.parent;
+          targetDoc = window.parent.document;
+          currentPath = window.parent.location.pathname;
+        } else throw 1;
+      } catch {
+        targetWin = window; targetDoc = document; currentPath = window.location.pathname;
+      }
+      const samePage = url ? new URL(url, location.href).pathname === currentPath : true;
+      if (samePage && anchor) {
+        const el = targetDoc.getElementById(anchor);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+          el.style.outline = "2px solid #2dd4bf";
+          setTimeout(() => (el.style.outline = ""), 1500);
+          out('<span class="ok">✓ scrolled PARENT to #' + anchor + '</span>');
+          return;
+        }
+      }
+      out('<span class="ok">→ would navigate PARENT to ' + url + '</span>');
+      // targetWin.location.href = url; // left commented so the demo doesn't navigate away
+    }
+
+    // ===== FIX 1: scrape the PARENT document, not this iframe =====
+    const isParent = (() => {
+      try { return window.parent && window.parent !== window && !!window.parent.document; }
+      catch { return false; }
+    })();
+    out(
+      '<span class="b">Scrape target:</span> ' +
+      (isParent
+        ? '<span class="ok">PARENT document ✓ (same-origin)</span>'
+        : '<span class="bad">own iframe document ✗ (cross-origin / no parent)</span>')
+    );
+
+    const sections = scrapeCurrentPage();
+    const chunks = chunkSections(sections);
+    out(`<span class="b">Scraped ${sections.length} sections → ${chunks.length} chunks from the HOST page.</span>`);
+
+    // ===== FIX 3: the "FAQ" heading had NO id → slug should now be assigned =====
+    for (const c of chunks) {
+      const slug = c.anchor && c.anchor.includes("-") ? ' <span class="tag">slug-assigned</span>' : "";
+      out(
+        `<span class="b">${c.title}</span>${slug}<br>` +
+        `<span class="mono">anchor=${c.anchor || "—"}<br>url=${c.url}</span><br>` +
+        `<span class="mono">${c.text.slice(0, 80)}…</span>`
+      );
+    }
+
+    // ===== FIX 2: pointer url comes from the SOURCE chunk, navigates the parent =====
+    const question = "how much is the pro plan and how do i contact support";
+    const ranked = chunks.map((c) => ({ ...c, s: score(question, c.text) })).sort((a, b) => b.s - a.s);
+    const top = ranked[0];
+    out(`<span class="b">Q:</span> "${question}"`);
+    out(`<span class="b">Top match:</span> ${top.title} (score ${top.s})<br><span class="mono">${top.url}</span>`);
+
+    // Pretend this chunk came from a DIFFERENT page (as a static site-index entry would)
+    // to prove the pointer resolves that url, NOT this iframe's location.
+    const crossPageUrl = window.parent.location.origin + "/pricing#" + top.anchor;
+    out('<span class="b">Pointer url resolved from source data</span> (not iframe location):');
+    const host = out(`<span class="mono">iframe location = ${location.href}<br>pointer url   = ${crossPageUrl}</span>`);
+    const btn = document.createElement("button");
+    btn.className = "ptr";
+    btn.textContent = "Go to: " + top.title;
+    btn.onclick = () => navigate({ url: crossPageUrl, anchor: top.anchor });
+    host.appendChild(btn);
+
+    out('<span class="mono">Click the button → different-path url would navigate the PARENT (commented out here so the demo stays put). Re-click "Pricing" section scroll works on same-page anchors.</span>');
+  </script>
+</body>
+</html>
