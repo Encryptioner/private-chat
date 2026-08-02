@@ -11,7 +11,10 @@
   <body>
     <div id="root"></div>
     <script>
-      if ("serviceWorker" in navigator) {
+      // SW is prod-only (GitHub Pages caching + COEP). In dev it intercepts vite's
+      // on-demand module/wasm requests (esp. under optimizeDeps.exclude) and breaks them.
+      const isDev = ["localhost", "0.0.0.0", "127.0.0.1"].includes(location.hostname);
+      if ("serviceWorker" in navigator && !isDev) {
         window.addEventListener("load", () => {
           navigator.serviceWorker.register("/sw.js").catch(console.error);
         });

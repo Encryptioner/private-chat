@@ -1,7 +1,7 @@
 /**
  * Service Worker for caching application shell, runtime resources, and model files.
  */
-const VERSION = "v1.0.4";
+const VERSION = "v1.0.5";
 const STATIC_CACHE = `static-${VERSION}`;
 const MODEL_CACHE = `models-${VERSION}`;
 
@@ -48,6 +48,15 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
+      // Dev: self-unregister so a previously-registered SW stops intercepting
+      // vite's on-demand module/wasm requests. index.html skips registration on
+      // localhost; this clears any SW registered before that guard landed.
+      if (["localhost", "0.0.0.0", "127.0.0.1"].includes(self.location.hostname)) {
+        await self.registration.unregister();
+        const clients = await self.clients.matchAll({ type: "window" });
+        clients.forEach((c) => c.navigate(c.url));
+        return;
+      }
       const keys = await caches.keys();
       await Promise.all(keys.filter((k) => ![STATIC_CACHE, MODEL_CACHE].includes(k)).map((k) => caches.delete(k)));
       self.clients.claim();

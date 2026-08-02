@@ -1,0 +1,42 @@
+- generic [active] [ref=e1]:
+  - heading "Acme Widgets" [level=1] [ref=e2]
+  - paragraph [ref=e3]: This is the HOST page. The chat iframe (bottom-right) should scrape this page, not itself.
+  - paragraph [ref=e4]: "PoC: serve this dir over http (modules need http, not file://), then watch the chat panel."
+  - generic [ref=e5]:
+    - heading "Pricing" [level=2] [ref=e6]
+    - paragraph [ref=e7]: Starter is $9 per month. Pro is $29 per month and includes unlimited widgets and priority support. Enterprise pricing is custom; contact sales for a quote.
+  - generic [ref=e8]:
+    - heading "Frequently Asked Questions" [level=2] [ref=e9]
+    - paragraph [ref=e10]: Yes, you can cancel anytime. Refunds are available within 14 days of payment. We accept all major credit cards and PayPal.
+  - generic [ref=e11]:
+    - heading "Contact" [level=2] [ref=e12]
+    - paragraph [ref=e13]: Email support@acme.example or call 555-0142. Our office is at 123 Main St. Response time is under 24 hours on weekdays.
+  - iframe [ref=e14]:
+    - generic [ref=f1e2]:
+      - generic [ref=f1e3]: "Scrape target: PARENT document ✓ (same-origin)"
+      - generic [ref=f1e4]: Scraped 4 sections → 4 chunks from the HOST page.
+      - generic [ref=f1e5]:
+        - text: Acme Widgets
+        - generic [ref=f1e6]: slug-assigned
+        - generic [ref=f1e7]: anchor=acme-widgetsurl=http://localhost:4321/poc/host.html#acme-widgets
+        - text: Acme Widgets This is the HOST page. The chat iframe (bottom-right) should scrape…
+      - generic [ref=f1e8]:
+        - text: Pricing
+        - generic [ref=f1e9]: anchor=pricingurl=http://localhost:4321/poc/host.html#pricing
+        - text: Pricing Starter is $9 per month. Pro is $29 per month and includes unlimited wid…
+      - generic [ref=f1e10]:
+        - text: Frequently Asked Questions
+        - generic [ref=f1e11]: slug-assigned
+        - generic [ref=f1e12]: anchor=frequently-asked-questionsurl=http://localhost:4321/poc/host.html#frequently-asked-questions
+        - text: Frequently Asked Questions Yes, you can cancel anytime. Refunds are available wi…
+      - generic [ref=f1e13]:
+        - text: Contact
+        - generic [ref=f1e14]: anchor=contacturl=http://localhost:4321/poc/host.html#contact
+        - text: Contact Email support@acme.example or call 555-0142. Our office is at 123 Main S…
+      - generic [ref=f1e15]: "Q: \"how much is the pro plan and how do i contact support\""
+      - generic [ref=f1e16]: "Top match: Pricing (score 5)http://localhost:4321/poc/host.html#pricing"
+      - generic [ref=f1e17]: "Pointer url resolved from source data (not iframe location):"
+      - generic [ref=f1e18]:
+        - generic [ref=f1e19]: iframe location = http://localhost:4321/poc/frame.htmlpointer url = http://localhost:4321/pricing#pricing
+        - 'button "Go to: Pricing" [ref=f1e20] [cursor=pointer]'
+      - generic [ref=f1e21]: Click the button → different-path url would navigate the PARENT (commented out here so the demo stays put). Re-click "Pricing" section scroll works on same-page anchors.
