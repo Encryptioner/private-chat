@@ -9,6 +9,7 @@
     "build": "vite build && pnpm run build:embed",
     "build:embed": "vite build --config vite.embed.config.js",
     "lint": "eslint .",
+    "test": "vitest run",
     "preview": "vite preview",
     "postinstall": "node download-model.cjs"
   },
@@ -36,8 +37,10 @@
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.12",
     "globals": "^15.9.0",
+    "jsdom": "^25.0.1",
     "prettier": "^3.4.2",
     "typescript-eslint": "^8.18.0",
-    "vite": "^5.4.8"
+    "vite": "^5.4.8",
+    "vitest": "^2.1.9"
   }
 }

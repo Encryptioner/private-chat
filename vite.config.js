@@ -80,5 +80,10 @@ export default defineConfig(({ command, mode }) => {
     optimizeDeps: {
       exclude: ["@wllama/wllama"],
     },
+    test: {
+      environment: "jsdom",
+      globals: true,
+      include: ["src/**/*.test.{js,jsx}"],
+    },
   };
 });
