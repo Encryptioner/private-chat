@@ -113,6 +113,11 @@ function App() {
       useCache: true,
       allowOffline: true,
       n_ctx: 4096, // Increase context window to handle longer conversations and larger prompts
+      // wllama 3.x enables pthreads at runtime when SharedArrayBuffer is present
+      // (COOP/COEP on in dev). The multi-worker GLUE framing desyncs under vite
+      // bundling → "Invalid typed array length: 1163217991" (= "GLUE"). Pin to 1
+      // thread: avoids the path, and matches prod (GitHub Pages = single-thread).
+      n_threads: 1,
       progressCallback: (progress) =>
         setModelState((current) => ({
           ...current,
