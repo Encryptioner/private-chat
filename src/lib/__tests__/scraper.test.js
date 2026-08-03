@@ -163,3 +163,34 @@ describe("slugify", () => {
     expect(slugify("A".repeat(100))).toHaveLength(60);
   });
 });
+
+describe("scrapeCurrentPage — hierarchical titles (document outline)", () => {
+  it("titles a subsection with its parent heading context (H2 — H3)", () => {
+    loadBody(`
+      <main>
+        <h2 id="experience">Experience</h2>
+        <article id="nerddevs"><h3>NerdDevs — Lead Engineer</h3><p>Led multiple high-impact projects to production.</p></article>
+        <article id="ruet"><h3>RUET — Engineer</h3><p>Built government traffic management solutions.</p></article>
+      </main>
+    `);
+    const sections = scrapeCurrentPage();
+    const titles = sections.map((s) => s.title);
+    // Each H3 subsection carries its parent H2 context (the H2 itself has no body
+    // text, so it produces no standalone section — correct text>20 filter).
+    expect(titles.some((t) => t === "Experience — NerdDevs — Lead Engineer")).toBe(true);
+    expect(titles.some((t) => t === "Experience — RUET — Engineer")).toBe(true);
+  });
+
+  it("resets context when a sibling H2 starts a new top-level section", () => {
+    loadBody(`
+      <main>
+        <h2 id="a">Alpha</h2><p>alpha body text goes here</p>
+        <h3>Alpha sub</h3><p>alpha sub body text here</p>
+        <h2 id="b">Beta</h2><p>beta body text goes right here</p>
+      </main>
+    `);
+    const sections = scrapeCurrentPage();
+    const beta = sections.find((s) => s.anchor === "b");
+    expect(beta.title).toBe("Beta"); // not "Alpha — Beta": H2 resets the outline
+  });
+});

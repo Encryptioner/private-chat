@@ -9,6 +9,8 @@
 
 const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NAV", "FOOTER", "NOSCRIPT", "SVG", "IFRAME"]);
 const HEADING_TAGS = new Set(["H1", "H2", "H3", "H4", "H5", "H6"]);
+// Heading level for the document-outline stack (hierarchical section titles).
+const HEADING_LEVEL = { H1: 1, H2: 2, H3: 3, H4: 4, H5: 5, H6: 6 };
 
 // ponytail: same-origin parent only. Cross-origin parent.document read throws;
 // live scrape is then disabled and we fall back to the static site index.
@@ -61,6 +63,19 @@ export function scrapeCurrentPage(rootEl) {
   let currentAnchor = null;
   let currentTitle = rootDoc.title || "Page";
   let buffer = [];
+  // Document-outline stack: [{level, text}]. Each section's title is the outline
+  // path joined ("H2 — H3"), so subsections carry parent context (hierarchical)
+  // instead of a flat/stale nearest-heading title.
+  const outline = [];
+  const headingTitle = (node) => {
+    const level = HEADING_LEVEL[node.tagName];
+    const text = node.textContent.trim().replace(/\s+/g, " ");
+    if (level) {
+      while (outline.length && outline[outline.length - 1].level >= level) outline.pop();
+      outline.push({ level, text });
+    }
+    return outline.map((o) => o.text).join(" — ").slice(0, 80);
+  };
 
   const flush = () => {
     const text = buffer.join(" ").replace(/\s+/g, " ").trim();
@@ -94,7 +109,7 @@ export function scrapeCurrentPage(rootEl) {
     if (hasId) {
       flush();
       currentAnchor = node.id;
-      if (isHeading) currentTitle = node.textContent.trim().slice(0, 80);
+      if (isHeading) currentTitle = headingTitle(node);
     } else if (isHeading) {
       const slug = slugify(node.textContent);
       // If an element already owns this id AND this heading lives INSIDE it, the
@@ -104,14 +119,14 @@ export function scrapeCurrentPage(rootEl) {
       if (owner && owner.contains(node)) {
         flush();
         currentAnchor = slug;
-        currentTitle = node.textContent.trim().slice(0, 80);
+        currentTitle = headingTitle(node);
       } else {
         // id-less heading out in the open: assign a collision-free slug so
         // getElementById resolves and navigateToSection can scroll to it.
         flush();
         currentAnchor = uniqueSlug(node.textContent, rootDoc);
         node.id = currentAnchor;
-        currentTitle = node.textContent.trim().slice(0, 80);
+        currentTitle = headingTitle(node);
       }
     }
 
