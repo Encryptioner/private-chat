@@ -196,6 +196,55 @@ and ask again, the answer reflects `/contact`.
 
 ---
 
+## Cross-page awareness via `site-index.json`
+
+By default the widget only knows the **current** page. For a **multi-page** site (docs, a
+landing + changelog + guide, …), generate a static `site-index.json` once and the chat gains
+**site-wide** awareness — a visitor on `/` can ask about `/changelog` and get a grounded answer
+**plus a link that takes them there**.
+
+> Single-page SPAs (one route, all content) don't need this — the live scrape already covers them.
+> It pays off on sites with multiple real pages.
+
+### Generate it (one command, from the private-chat repo)
+
+```bash
+# one-time: install the headless browser the crawler uses
+npx playwright install chromium
+
+# crawl the site → write chunks-only site-index.json (NO vectors)
+pnpm build:site-index -- --url https://yoursite.example/ [--depth 1] \
+  [--pages /,/about,/docs] [--out ./site-index.json]
+```
+
+- `--depth N` — follow same-**path-prefix** internal links (scoped to the start URL's directory,
+  so on shared origins like `github.io` it won't crawl sibling sites). Default 1.
+- `--pages a,b` — explicit page paths (relative to `--url`) instead of discovery.
+- The crawler renders each page with Playwright (handles SPAs) and runs the **real** `src/lib/scraper.js`
+  in-page — or the site's own `getSections` if it's deployed — so the index matches the live page.
+- Output is **chunks-only** (`{anchor,title,url,text}`). The widget embeds those chunks at runtime
+  with its **own** bge embedder (guaranteed vector parity with the live page), **cached by content
+  hash** — a one-time cost per index version, then instant.
+
+### Deploy it
+
+1. Commit the generated `site-index.json` to your site repo (at the root, or `public/` for CRA).
+2. Serve it at `/site-index.json` (deploy the repo).
+3. Point the widget at it — set `siteIndexUrl`, or rely on the `/site-index.json` fallback:
+   ```html
+   <script>
+     window.PRIVATE_CHAT_CONFIG = { label: "My Site", siteIndexUrl: "/site-index.json" };
+   </script>
+   ```
+4. **Re-run the crawler when content changes** — `site-index.json` is a static snapshot. The widget's
+   content-hash cache means a new file triggers one re-embed, then it's cached again.
+
+> Worked example: `branchdiff-releases` ships a `site-index.json` covering its landing + guideline +
+> changelog (3 pages, ~189 chunks), so the chat answers install/changelog/guideline questions from any
+> page and links to the right one.
+
+---
+
 ## "Related sections" links
 
 When the model's answer relates to retrieved content, up to 3 links appear under it. Clicking

@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "build:site-index": "node tools/build-site-index.mjs",
     "preview": "vite preview",
     "postinstall": "node download-model.cjs"
   },
