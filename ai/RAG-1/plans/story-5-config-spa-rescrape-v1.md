@@ -39,6 +39,26 @@
 - [ ] Watcher is general (works on the fake SPA, not hardcoded to portfolio-template) — m4
 - [ ] Cross-origin parent → watcher never installs / no crash
 
+## Implementation Notes (2026-08-03)
+
+- **hostNav is pathname-gated** (not content-hash gated): it fires `onNavigate` only when
+  `parent.location.pathname` changes. Same-route DOM edits (ads/lazy-load) don't re-scrape,
+  avoiding thrash. Content-change dedup on a *new* route still happens via `buildIndex`'s
+  contentHash cache hit. **Known v1 limit:** a same-route content edit won't refresh the index
+  — acceptable, route-awareness is the headline (portfolio-template target). Noted with a
+  `// ponytail:` upgrade path in `hostNav.js`.
+- **Lazy refresh (Maj2 respected):** App's `onNavigate` calls `initPageIndex` **only if
+  `hasIndex()`** — i.e. only after the first question built the index. The embedder GGUF never
+  loads on widget open or on pre-question navigation.
+- **Config boundary strict (m3):** `embed.ts` is the sole reader of `window.PRIVATE_CHAT_CONFIG`
+  (host context); it forwards `label`/`siteIndexUrl` as iframe query params. `siteIndex.js`
+  resolves via the explicit arg only — no host-window read inside the iframe.
+- **Maj3 race closed with zero new App code:** Story 4 already captures the index `version` per
+  turn; Story 5's re-scrape bumps `currentIndexVersion` (contentHash) on content change. A
+  cache-hit re-scrape yields the *same* hash → no spurious source discard.
+- **SPA harness:** `test-files/spa-host.html` swaps two routes via `history.pushState` + DOM
+  replacement (no reload) — exercises the MutationObserver path React-Router-style SPAs use.
+
 ## Notes
 - **embed.ts is the ONLY host-context code.** It can read `window.PRIVATE_CHAT_CONFIG`; the iframe (App.jsx) cannot (cross-origin). That's why config must be forwarded as query params (m3). Keep this boundary strict.
 - **MutationObserver cost:** observe `{childList:true, subtree:true}` on host body, debounce 500ms, and short-circuit on unchanged `hashText`. Benchmark on a heavy SPA in Story 5 — if it thrashes, narrow to `childList` only (no `subtree`) or raise debounce. `// ponytail:` note the debounce choice.

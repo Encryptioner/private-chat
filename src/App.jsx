@@ -6,7 +6,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CHAT_ROLE as ROLE, formatChat, getWllamaInstance, PRESET_MODELS } from "./lib/wllama";
 import { loadChatSessions, saveChatSessions, createNewSession, updateSession, deleteSession } from "./lib/chatStorage";
-import { buildGroundedContext, getCurrentIndexVersion } from "./lib/ragEngine.js";
+import { buildGroundedContext, getCurrentIndexVersion, initPageIndex, hasIndex } from "./lib/ragEngine.js";
+import { installHostNavWatcher } from "./lib/hostNav.js";
 import {
   Box,
   Callout,
@@ -99,6 +100,8 @@ function App() {
   const [isMobile, setIsMobile] = useState(false);
   const [generatingSessionId, setGeneratingSessionId] = useState(null);
   const [isIndexing, setIsIndexing] = useState(false);
+  const [widgetLabel, setWidgetLabel] = useState(null);
+  const siteIndexUrlRef = useRef(null);
   const [domainParam, setDomainParam] = useState(null);
   const selectedModel = localModelFiles.length
     ? { name: localModelFiles[0].name, url: "file", license: "" }
@@ -159,6 +162,8 @@ function App() {
     const systemParam = urlParams.get("system");
     const domainParam = urlParams.get("domain");
     const embeddedParam = urlParams.get("embedded");
+    const labelParam = urlParams.get("label");
+    const siteIndexUrlParam = urlParams.get("siteIndexUrl");
 
     // eslint-disable-next-line no-console
     console.log({
@@ -180,6 +185,11 @@ function App() {
       setDomainParam(domainParam);
     }
 
+    // Per-site config forwarded by embed.ts (FR-6): label → greeting (embed mode);
+    // siteIndexUrl → passed to the index layer (static site-index.json merge, m3).
+    if (labelParam) setWidgetLabel(decodeURIComponent(labelParam));
+    if (siteIndexUrlParam) siteIndexUrlRef.current = decodeURIComponent(siteIndexUrlParam);
+
     const sessions = loadChatSessions(domainParam, embeddedParam === "true" ? "session" : "local");
     setChatSessions(sessions);
 
@@ -197,6 +207,18 @@ function App() {
     }
 
     loadModel();
+
+    // SPA re-scrape (FR-9): re-index on host client-side navigation. Lazy — only
+    // refreshes once the index exists (after the first question), so the embedder
+    // never loads on widget open or on pre-question navigation (grill Maj2).
+    // installHostNavWatcher returns its own uninstall fn, returned here for cleanup.
+    if (embeddedParam === "true") {
+      return installHostNavWatcher({
+        onNavigate: () => {
+          if (hasIndex()) initPageIndex(siteIndexUrlRef.current);
+        },
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -370,7 +392,7 @@ function App() {
     if (isEmbedded) {
       setIsIndexing(true);
       try {
-        const grounded = await buildGroundedContext(currentPrompt.trim());
+        const grounded = await buildGroundedContext(currentPrompt.trim(), siteIndexUrlRef.current);
         if (grounded.systemContent) {
           systemContent = grounded.systemContent;
           sourcesVersion = grounded.version;
@@ -774,7 +796,9 @@ function App() {
                     </Flex>
                   ) : (
                     <Text size="7" align="center" asChild>
-                      <h1 className="scale-up-center">Hi, how may I help you?</h1>
+                      <h1 className="scale-up-center">
+                        {widgetLabel ? `How can ${widgetLabel} help you?` : "Hi, how may I help you?"}
+                      </h1>
                     </Text>
                   )}
                 </Box>

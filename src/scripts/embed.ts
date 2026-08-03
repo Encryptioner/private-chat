@@ -1,6 +1,13 @@
 declare global {
   interface Window {
     loadChatApp: (elementId: string) => void;
+    // Set by the HOST page before embed.js loads (spec FR-6). embed.ts runs in the
+    // host context and CAN read this; the cross-origin iframe cannot, so these are
+    // forwarded onto the iframe URL as query params (m3).
+    PRIVATE_CHAT_CONFIG?: {
+      label?: string;
+      siteIndexUrl?: string;
+    };
   }
 }
 
@@ -69,7 +76,15 @@ class EmbedScript {
     for (const [key, value] of this.embedQueryParams.entries()) {
       iframeUrl.searchParams.set(key, value);
     }
-    
+
+    // Forward the host's PRIVATE_CHAT_CONFIG (label, siteIndexUrl) as query params.
+    // embed.ts is the ONLY host-context code; the iframe reads these from its own URL.
+    const config = window.PRIVATE_CHAT_CONFIG;
+    if (config) {
+      if (config.label) iframeUrl.searchParams.set('label', config.label);
+      if (config.siteIndexUrl) iframeUrl.searchParams.set('siteIndexUrl', config.siteIndexUrl);
+    }
+
     iframe.src = iframeUrl.toString();
     iframe.style.width = '100%';
     iframe.style.height = '100%';

@@ -10,15 +10,19 @@
 
 import { scrapeCurrentPage, chunkSections } from "./scraper.js";
 import { buildIndex, retrieveRelevant } from "./embeddings.js";
+import { getCombinedIndex } from "./siteIndex.js";
 import { RAG } from "./constants.js";
 
-let currentIndex = null; // [{vec, anchor, title, url, text}, ...] + static merge (Story 5)
+let currentIndex = null; // [{vec, anchor, title, url, text}, ...] live + static merge
 let currentIndexVersion = ""; // contentHash; bumped on every initPageIndex (race guard, grill Maj3)
 
 /**
- * Scrapes + chunks the host page and embeds it into the live index. Called once
- * on the first question (Story 4); Story 5 re-calls it on host navigation.
- * @param {string} [siteIndexUrl] reserved for Story 5's static-index merge
+ * Scrapes + chunks the host page, embeds it, and merges the optional static
+ * site-index.json. Idempotent — safe to re-call on host SPA navigation (Story 5);
+ * a cache hit (unchanged contentHash) skips re-embedding. Bumps currentIndexVersion
+ * only when content actually changes, so a concurrent in-flight query detects the
+ * swap via version mismatch (grill Maj3).
+ * @param {string} [siteIndexUrl] optional static-index URL (query param from embed.ts)
  * @returns {Promise<number>} chunk count
  */
 export async function initPageIndex(siteIndexUrl) {
@@ -26,10 +30,7 @@ export async function initPageIndex(siteIndexUrl) {
   const chunks = chunkSections(sections, { maxWords: RAG.CHUNK_MAX_WORDS });
   const live = await buildIndex(chunks); // {vectors, version}; cache hit = no model load
   currentIndexVersion = live.version;
-  // ponytail: Story 4 uses live vectors only. Story 5 merges getCombinedIndex()
-  // (static site-index.json) here — siteIndexUrl param reserved for that.
-  void siteIndexUrl;
-  currentIndex = live.vectors;
+  currentIndex = await getCombinedIndex(live.vectors, siteIndexUrl); // static merge (m3)
   return currentIndex.length;
 }
 
@@ -62,18 +63,25 @@ function buildSystemMessage(relevantChunks) {
  * loads LAZILY here on first retrieve/init — NOT on widget open (grill Maj2).
  *
  * @param {string} userQuestion
+ * @param {string} [siteIndexUrl] optional static-index URL (forwarded by embed.ts)
  * @returns {Promise<{systemContent:string, sources:Array, version:string}>}
  *   systemContent=null when no chunks clear threshold → caller keeps its generic
  *   system message (context-less chat, no links).
  */
-export async function buildGroundedContext(userQuestion) {
-  if (!currentIndex) await initPageIndex();
+export async function buildGroundedContext(userQuestion, siteIndexUrl) {
+  if (!currentIndex) await initPageIndex(siteIndexUrl);
 
-  const relevant = await retrieveRelevant(userQuestion, currentIndex, RAG.TOP_K);
+  // Snapshot index + version TOGETHER so a concurrent Story 5 re-scrape can't
+  // pair a new vector set with an old version (or vice versa). retrieveRelevant
+  // scans this stable snapshot; the caller compares the returned version to the
+  // live one (grill Maj3).
+  const index = currentIndex;
+  const version = currentIndexVersion;
+  const relevant = await retrieveRelevant(userQuestion, index, RAG.TOP_K);
   return {
     systemContent: relevant.length ? buildSystemMessage(relevant) : null,
     sources: relevant, // [{anchor,title,url,text,score}] — no vec
-    version: currentIndexVersion,
+    version,
   };
 }
 

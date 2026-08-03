@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SPA Host — RAG re-scrape harness</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-apple-system, sans-serif;
+        max-width: 760px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.6;
+        color: #111;
+      }
+      nav button {
+        margin-right: 8px;
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      section {
+        padding: 1.5rem 0;
+        border-top: 1px solid #eee;
+      }
+      #ai-chat-embed-div {
+        position: fixed;
+        bottom: 0;
+        right: 0;
+        width: 380px;
+        height: 560px;
+        border: 1px solid #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Fake SPA host for Story 5 (FR-9 SPA re-scrape) + FR-6 config. Two "routes"
+      swapped via history.pushState + DOM replacement (no full reload), so the
+      chat's MutationObserver/popstate watcher must re-scrape on route change.
+
+      Set PRIVATE_CHAT_CONFIG BEFORE embed.js loads — embed.ts (host context)
+      forwards label + siteIndexUrl to the iframe as query params.
+    -->
+    <script>
+      window.PRIVATE_CHAT_CONFIG = { label: "Acme Labs", siteIndexUrl: "/none.json" };
+    </script>
+
+    <h1>Acme Labs <small>(SPA host)</small></h1>
+    <nav>
+      <button data-route="/route-a">Go to Route A</button>
+      <button data-route="/route-b">Go to Route B</button>
+    </nav>
+    <main id="app"><!-- route content injected here --></main>
+
+    <!-- embed.js reads this element id to mount the chat iframe inline. -->
+    <div id="ai-chat-embed-div"></div>
+    <script id="aiChatEmbedScript" src="/embed.js"></script>
+
+    <script>
+      const ROUTES = {
+        "/route-a": {
+          title: "Route A — Pricing",
+          html: `
+            <section id="pricing"><h2>Pricing</h2><p>Route A plans start at $9 per month.</p></section>
+            <section><h2>FAQ</h2><p>Common questions about Route A refunds and billing.</p></section>`,
+        },
+        "/route-b": {
+          title: "Route B — Contact",
+          html: `
+            <section id="contact"><h2>Contact</h2><p>Route B support: email help@acme.example.</p></section>
+            <section id="team"><h2>Team</h2><p>Meet the Route B crew.</p></section>`,
+        },
+      };
+
+      function render(path) {
+        const route = ROUTES[path] || ROUTES["/route-a"];
+        document.getElementById("app").innerHTML = route.html;
+        document.title = route.title;
+      }
+
+      function navigate(path) {
+        // Client-side route change: pushState (no popstate!) + DOM swap. This is
+        // the React-Router-default path the MutationObserver must catch.
+        history.pushState({}, "", path);
+        render(path);
+      }
+
+      document.querySelectorAll("nav button").forEach((btn) => {
+        btn.addEventListener("click", () => navigate(btn.dataset.route));
+      });
+      window.addEventListener("popstate", () => render(location.pathname));
+
+      render(location.pathname || "/route-a");
+    </script>
+  </body>
+</html>
