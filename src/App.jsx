@@ -350,10 +350,22 @@ function App() {
       ...latestMessages,
       { role: ROLE.user, content: currentPrompt.trim(), id: messageIdGenerator.next().value },
     ]);
-    await wllama.createCompletion(formattedChat, {
-      nPredict: 1024,
-      sampling: { temp: 0.6, penalty_repeat: 1.5 },
-      onNewToken,
+    // wllama 3.x: createCompletion takes a SINGLE options object (prompt inside),
+    // uses max_tokens (not nPredict), flat sampling fields, and onData (not the
+    // 2.x onNewToken). onData yields only the incremental piece, so we accumulate
+    // to feed the app's existing onNewToken(token, piece, cumulativeText) contract.
+    let cumulative = "";
+    await wllama.createCompletion({
+      prompt: formattedChat,
+      max_tokens: 1024,
+      temperature: 0.6,
+      penalty_repeat: 1.5,
+      stream: true,
+      onData: (chunk) => {
+        const piece = chunk?.choices?.[0]?.text ?? "";
+        cumulative += piece;
+        onNewToken(0, piece, cumulative);
+      },
     });
     setIsGenerating(false);
     setGeneratingSessionId(null);

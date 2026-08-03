@@ -90,25 +90,11 @@ export const formatChat = async (wllamaInstance, messages) => {
     const chatTemplate = wllamaInstance.getChatTemplate();
     const template = new Template(chatTemplate ?? CHAT_TEMPLATE);
 
-    let bosToken = "";
-    let eosToken = "";
-
-    // Safely get BOS/EOS tokens
-    try {
-      if (typeof wllamaInstance.getBOS === "function" && typeof wllamaInstance.detokenize === "function") {
-        bosToken = await wllamaInstance.detokenize([wllamaInstance.getBOS()]);
-      }
-    } catch (e) {
-      console.warn("Failed to get BOS token:", e.message);
-    }
-
-    try {
-      if (typeof wllamaInstance.getEOS === "function" && typeof wllamaInstance.detokenize === "function") {
-        eosToken = await wllamaInstance.detokenize([wllamaInstance.getEOS()]);
-      }
-    } catch (e) {
-      console.warn("Failed to get EOS token:", e.message);
-    }
+    // wllama 3.x removed detokenize(); BOS/EOS aren't obtainable as strings via
+    // the low-level API. Chat templates carry their own special tokens (Gemma uses
+    // <start_of_turn>/<end_of_turn>), so rendering with empty bos/eos is correct.
+    const bosToken = "";
+    const eosToken = "";
 
     return template.render({
       messages,
