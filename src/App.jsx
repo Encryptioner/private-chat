@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CHAT_ROLE as ROLE, formatChat, getWllamaInstance, PRESET_MODELS } from "./lib/wllama";
 import { loadChatSessions, saveChatSessions, createNewSession, updateSession, deleteSession } from "./lib/chatStorage";
+import { buildGroundedContext, getCurrentIndexVersion } from "./lib/ragEngine.js";
 import {
   Box,
   Callout,
@@ -33,6 +34,7 @@ import Loader from "./components/Loader";
 import Dropdown from "./components/Dropdown";
 import IconButton from "./components/IconButton";
 import ChatHistorySidebar from "./components/ChatHistorySidebar";
+import RelatedSections from "./components/RelatedSections.jsx";
 
 const ELLIPSIS = "...";
 const DEFAULT_MODEL_ID = Object.values(PRESET_MODELS).find((m) => m.default)?.name || Object.keys(PRESET_MODELS)[0];
@@ -96,6 +98,7 @@ function App() {
   );
   const [isMobile, setIsMobile] = useState(false);
   const [generatingSessionId, setGeneratingSessionId] = useState(null);
+  const [isIndexing, setIsIndexing] = useState(false);
   const [domainParam, setDomainParam] = useState(null);
   const selectedModel = localModelFiles.length
     ? { name: localModelFiles[0].name, url: "file", license: "" }
@@ -177,7 +180,7 @@ function App() {
       setDomainParam(domainParam);
     }
 
-    const sessions = loadChatSessions(domainParam);
+    const sessions = loadChatSessions(domainParam, embeddedParam === "true" ? "session" : "local");
     setChatSessions(sessions);
 
     const sessionIds = Object.keys(sessions);
@@ -213,7 +216,7 @@ function App() {
       const sessionsToSave = Object.fromEntries(
         Object.entries(updatedSessions).filter(([_, session]) => session.messages.length > 0)
       );
-      saveChatSessions(sessionsToSave, domainParam);
+      saveChatSessions(sessionsToSave, domainParam, isEmbedded ? "session" : "local");
     }
   }, [messages, currentSessionId]);
 
@@ -278,38 +281,41 @@ function App() {
     // Update current messages if this is the active session
     setMessages((current) => [...current, userMessage, assistantMessage]);
 
-    return (token, piece, text) => {
-      // Update the specific session
-      setChatSessions((current) => {
-        const session = current[sessionId];
-        if (session) {
-          const updatedMessages = [...session.messages];
-          if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1]) {
-            updatedMessages[updatedMessages.length - 1].content = text;
+    return {
+      assistantId: assistantMessage.id,
+      onNewToken: (token, piece, text) => {
+        // Update the specific session
+        setChatSessions((current) => {
+          const session = current[sessionId];
+          if (session) {
+            const updatedMessages = [...session.messages];
+            if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1]) {
+              updatedMessages[updatedMessages.length - 1].content = text;
+            }
+            const updatedSession = {
+              ...session,
+              messages: updatedMessages,
+              updatedAt: new Date().toISOString(),
+            };
+            return { ...current, [sessionId]: updatedSession };
           }
-          const updatedSession = {
-            ...session,
-            messages: updatedMessages,
-            updatedAt: new Date().toISOString(),
-          };
-          return { ...current, [sessionId]: updatedSession };
-        }
-        return current;
-      });
+          return current;
+        });
 
-      // Update current messages only if viewing this session
-      setMessages((current) => {
-        // Check if we're still viewing the same session
-        if (sessionId === currentSessionIdRef.current) {
-          const updatedMessages = [...current];
-          if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1]) {
-            updatedMessages[updatedMessages.length - 1].content = text;
+        // Update current messages only if viewing this session
+        setMessages((current) => {
+          // Check if we're still viewing the same session
+          if (sessionId === currentSessionIdRef.current) {
+            const updatedMessages = [...current];
+            if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1]) {
+              updatedMessages[updatedMessages.length - 1].content = text;
+            }
+            return updatedMessages;
           }
-          return updatedMessages;
-        }
-        // Don't update if we've switched to a different session
-        return current;
-      });
+          // Don't update if we've switched to a different session
+          return current;
+        });
+      },
     };
   };
 
@@ -333,7 +339,7 @@ function App() {
 
     // Ensure the ref is up to date before streaming
     currentSessionIdRef.current = sessionId;
-    const onNewToken = streamMessages(currentPrompt, sessionId);
+    const { onNewToken, assistantId } = streamMessages(currentPrompt, sessionId);
     setIsGenerating(true);
     setGeneratingSessionId(sessionId);
 
@@ -341,11 +347,47 @@ function App() {
     setPrompt("");
 
     if (!isReady) await loadModel();
+
+    // Attach retrieval sources to the assistant placeholder so RelatedSections
+    // can render once the message exists (grill min2). null clears them.
+    const attachSources = (sources) => {
+      const apply = (list) => list.map((m) => (m.id === assistantId ? { ...m, sources: sources || undefined } : m));
+      setChatSessions((current) => {
+        const session = current[sessionId];
+        if (!session) return current;
+        return { ...current, [sessionId]: { ...session, messages: apply(session.messages) } };
+      });
+      setMessages((current) => (sessionId === currentSessionIdRef.current ? apply(current) : current));
+    };
+
+    // RAG (embed mode only, spec FR-4/FR-5): ground the system message in the
+    // page's retrieved context. Reuses the proven formatChat→createCompletion
+    // flow (R1) — does NOT call the dead createChatCompletion. The embedder GGUF
+    // loads LAZILY on this first grounded question, not on widget open (grill Maj2);
+    // any failure degrades silently to context-less chat (grill M1).
+    let systemContent = customSystemMessage;
+    let sourcesVersion = null;
+    if (isEmbedded) {
+      setIsIndexing(true);
+      try {
+        const grounded = await buildGroundedContext(currentPrompt.trim());
+        if (grounded.systemContent) {
+          systemContent = grounded.systemContent;
+          sourcesVersion = grounded.version;
+          attachSources(grounded.sources);
+        }
+      } catch (error) {
+        console.debug("[RAG] grounding failed, falling back to context-less chat:", error?.message);
+      } finally {
+        setIsIndexing(false);
+      }
+    }
+
     const latestMessages = [...messages].slice(-4);
     const formattedChat = await formatChat(wllama, [
       {
         role: ROLE.system,
-        content: customSystemMessage,
+        content: systemContent,
       },
       ...latestMessages,
       { role: ROLE.user, content: currentPrompt.trim(), id: messageIdGenerator.next().value },
@@ -367,6 +409,11 @@ function App() {
         onNewToken(0, piece, cumulative);
       },
     });
+    // Race guard (grill Maj3): if a Story 5 SPA re-scrape swapped the live index
+    // mid-turn, the captured sources may point at the old route — drop them.
+    if (sourcesVersion !== null && getCurrentIndexVersion() !== sourcesVersion) {
+      attachSources(null);
+    }
     setIsGenerating(false);
     setGeneratingSessionId(null);
   };
@@ -443,7 +490,7 @@ function App() {
     const sessionsToSave = Object.fromEntries(
       Object.entries(updatedSessions).filter(([, session]) => session.messages.length > 0)
     );
-    saveChatSessions(sessionsToSave, domainParam);
+    saveChatSessions(sessionsToSave, domainParam, isEmbedded ? "session" : "local");
 
     if (sessionId === currentSessionId) {
       const remainingSessions = Object.values(updatedSessions).filter((session) => session.messages.length > 0);
@@ -472,7 +519,7 @@ function App() {
         [sessionId]: updatedSession,
       };
       setChatSessions(updatedSessions);
-      saveChatSessions(updatedSessions, domainParam);
+      saveChatSessions(updatedSessions, domainParam, isEmbedded ? "session" : "local");
     }
   };
 
@@ -582,7 +629,7 @@ function App() {
                   scrollbars="vertical"
                   className={`messages-container${isEmbedded ? " embedded" : ""}`}
                   ref={messagesContainerRef}>
-                  {messages.map(({ content, role, id }, index) => {
+                  {messages.map(({ content, role, id, sources }, index) => {
                     const isLastMessage = index === messages.length - 1;
                     const [reasoning, conclusion = " "] = content.startsWith("<think>")
                       ? content.split("</think>")
@@ -688,6 +735,10 @@ function App() {
                                   </IconButton>
                                 </Flex>
                               )}
+                            {/* Related sections from retrieval (spec FR-5) */}
+                            {role === ROLE.assistant && sources?.length > 0 && content !== ELLIPSIS && (
+                              <RelatedSections sources={sources} />
+                            )}
                           </Box>
                         </Flex>
                       </Box>
@@ -700,6 +751,11 @@ function App() {
                     </Text>
                   )}
                   <Loader isLoading={isGenerating && generatingSessionId === currentSessionId && !isLoading} />
+                  {isIndexing && (
+                    <Text as="div" size="1" style={{ color: "var(--gray-a10)" }}>
+                      Indexing this page…
+                    </Text>
+                  )}
                 </ScrollArea>
               ) : (
                 <Box className="welcome-text" pb="5">

@@ -42,6 +42,24 @@
 - [ ] Cross-page nav → chat history restored from sessionStorage (m1, R4)
 - [ ] Related-links list renders within mobile width
 
+## Implementation Notes (2026-08-03)
+
+- **`buildGroundedMessages` → `buildGroundedContext`** (renamed). The PoC returned a full
+  messages array; the shipped version returns `{ systemContent, sources, version }` so
+  `App.jsx` stays the single owner of the Jinja-bound message list (id generation, 4-msg
+  window, `formatChat`). App wraps the string as `{ role: ROLE.system, content: systemContent }`.
+- **Note 49 (system-message precedence):** in grounded mode the grounded system message
+  **replaces** `customSystemMessage` for that turn; `customSystemMessage` (incl. the `?system=`
+  host param) still governs the **context-less** path (empty retrieval / non-embed). Both
+  behaviors are explicit branches in `submitPrompt`. A future refinement could prepend a host
+  `?system=` prefix to the grounded message — not done for v1 (avoids dual "you are an
+  assistant" instructions confusing small models).
+- **Sources wiring (min2):** `streamMessages` now returns `{ onNewToken, assistantId }`;
+  `submitPrompt.attachSources(sources)` maps the placeholder by id in both `chatSessions` and
+  `messages`, and is reused to clear sources on the Maj3 version mismatch.
+- **`getCurrentIndexVersion()`** is wired now even though Story 4 is one-shot — Story 5's SPA
+  swap needs zero `App.jsx` changes for the race guard.
+
 ## Notes
 - **`createChatCompletion` stays dead.** Do not "fix" it by routing RAG through it — that's a larger change with its own risks. Inject context into the system message the existing flow already renders. (R1)
 - **`message.sources` is a new optional field** on the assistant message. `chatStorage` must tolerate it (JSON.stringify handles it; sessionStorage carries it). No migration — existing localStorage sessions just have `sources: undefined`.

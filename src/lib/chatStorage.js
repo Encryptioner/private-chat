@@ -46,7 +46,13 @@ export const generateSessionTitle = (messages) => {
   return title.length > 30 ? title.substring(0, 30) + "..." : title;
 };
 
-export const saveChatSessions = (sessions, domainParam = null) => {
+// storage: 'local' (default, standalone app — persists across sessions) or
+// 'session' (embed mode — survives a cross-page host reload that destroys the
+// iframe, clears on tab close; spec FR-5 m1). message.sources round-trips via JSON.
+const getStore = (storage) =>
+  storage === "session" && typeof sessionStorage !== "undefined" ? sessionStorage : localStorage;
+
+export const saveChatSessions = (sessions, domainParam = null, storage = "local") => {
   try {
     const sessionsArray = Object.values(sessions);
     const limitedSessions = sessionsArray
@@ -58,15 +64,15 @@ export const saveChatSessions = (sessions, domainParam = null) => {
       return acc;
     }, {});
 
-    localStorage.setItem(getStorageKey(domainParam), JSON.stringify(sessionsObject));
+    getStore(storage).setItem(getStorageKey(domainParam), JSON.stringify(sessionsObject));
   } catch (error) {
     console.debug("Failed to save chat sessions:", error);
   }
 };
 
-export const loadChatSessions = (domainParam = null) => {
+export const loadChatSessions = (domainParam = null, storage = "local") => {
   try {
-    const stored = localStorage.getItem(getStorageKey(domainParam));
+    const stored = getStore(storage).getItem(getStorageKey(domainParam));
     return stored ? JSON.parse(stored) : {};
   } catch (error) {
     console.debug("Failed to load chat sessions:", error);
