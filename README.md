@@ -110,7 +110,9 @@ optional):
 
 📖 **Full integration guide:** [`docs/SITE-INTEGRATION.md`](docs/SITE-INTEGRATION.md) — the
 three running modes, the custom-scraper contract with examples, SPA behavior, link handling,
-troubleshooting, and privacy/security notes.
+troubleshooting, and privacy/security notes. **Writing your own scraper?**
+[`docs/CUSTOM-SCRAPER-GUIDE.md`](docs/CUSTOM-SCRAPER-GUIDE.md) — step-by-step cookbook with
+patterns + a local test tool.
 
 ### Advanced Integration
 

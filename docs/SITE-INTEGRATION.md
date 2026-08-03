@@ -89,6 +89,10 @@ Set this **before** the script tag. All fields are optional.
 
 ## Custom scraper — `getSections`
 
+> 📖 **Writing your own scraper?** See [`docs/CUSTOM-SCRAPER-GUIDE.md`](CUSTOM-SCRAPER-GUIDE.md)
+> — a full step-by-step cookbook (when to write one, DevTools inspection, 5 copy-paste
+> patterns, local testing with `test-files/scrape-eval.mjs`, and a worked branchdiff example).
+
 The built-in scraper reads visible text grouped under the nearest heading/`id`. That covers
 most sites. Override it when you want full control — e.g. a CMS-driven page, a JSON-LD block,
 a specific content region, or content that loads behind interaction.
