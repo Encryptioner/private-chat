@@ -4,7 +4,7 @@
 **Version:** v1
 **Spec:** See `../requirements/spec-v1.md` (unchanged — deployable target)
 **Approach:** Vertical (story slices)
-**Status:** Grilled *(grill-plan-v1.md — PASS WITH CONDITIONS; 3 majors applied to stories 1/3/4/5)*
+**Status:** Implemented *(Stories 1–6 complete; 49 unit tests green; build + embed green. Human gate pending: model-backed Playwright E2E + portfolio-template deploy/verify — see post-impl summary.)*
 
 ## Approach Summary
 
