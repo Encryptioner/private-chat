@@ -10,6 +10,7 @@ This is a browser-based AI chat assistant that runs LLMs (Large Language Models)
 
 - **Frontend**: React application with Vite as the build tool
 - **LLM Engine**: Wllama (@wllama/wllama) - WebAssembly-based LLM inference
+- **Site-Aware RAG**: When embedded on a same-origin host, the widget scrapes the page → chunks → embeds locally (a *dedicated* second Wllama instance running `bge-small-en-v1.5`) → retrieves top-k → grounds the answer and renders "Related sections" links. Embedder loads lazily on the first question; vectors are IndexedDB-cached. See `src/lib/ragEngine.js`, `embeddings.js`, `scraper.js`.
 - **UI Framework**: Radix UI themes for consistent design components
 - **Model Format**: GGUF format models from Hugging Face
 - **State Management**: React hooks (no external state management)

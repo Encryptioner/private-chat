@@ -14,6 +14,7 @@ Blog post:
 - 📱 **Responsive Design**: Works across all devices and screen sizes
 - ⚡ **WebAssembly Powered**: Fast inference using Wllama
 - 🎯 **Easy Integration**: Simple embed script for websites
+- 🧠 **Site-Aware (RAG)**: When embedded, the widget scrapes the host page and answers from its own content — with clickable links that scroll to the relevant section. 100% in-browser, no backend.
 
 ## Quick Start
 
@@ -79,6 +80,27 @@ If you want the chat to load in a specific location:
 <!-- Chat loads automatically here -->
 <div id="ai-chat-embed-div"></div>
 ```
+
+### Site-Aware Configuration (Optional)
+
+Set `window.PRIVATE_CHAT_CONFIG` **before** the embed script loads to customize the widget per site. The config is read in the host context and forwarded to the chat iframe — no per-site code fork.
+
+```html
+<script>
+  // Both fields optional
+  window.PRIVATE_CHAT_CONFIG = {
+    label: "Acme Labs",          // shown in the widget greeting
+    siteIndexUrl: "/site-index.json" // optional pre-built cross-page index
+  };
+</script>
+<script id="aiChatEmbedScript" defer src="https://encryptioner.github.io/private-chat/embed.js"></script>
+```
+
+- **No config** → the widget still works: it live-scrapes the current page (same-origin only) and grounds answers in that.
+- **Cross-origin host** → scraping silently disables; the widget falls back to a generic, context-less chat (no crash).
+- `siteIndexUrl` is optional (phase-2 cross-page index); a missing file is ignored.
+
+> The widget answers **only** from the page's retrieved content. If a question isn't covered, it says so. Up to 3 "Related sections" links appear under the answer when relevant.
 
 ### Advanced Integration
 
