@@ -47,15 +47,7 @@ const scraperSrc =
   readFileSync(resolve(repoRoot, "src/lib/scraper.js"), "utf8").replace(/export\s+(function|const)/g, "$1") +
   "\nwindow.__pcScrape = scrapeCurrentPage;";
 
-// --- page discovery (BFS over same-origin internal links) ---
-function sameOrigin(href, origin) {
-  try {
-    return new URL(href).origin === origin;
-  } catch {
-    return false;
-  }
-}
-
+// --- page discovery (BFS over same-path-prefix internal links) ---
 async function discoverPages(page, start, maxDepth, explicit) {
   if (explicit) {
     return explicit.map((p) => new URL(p, start).href.split("#")[0]);
@@ -150,7 +142,6 @@ const urls = await discoverPages(page, startUrl, depth, explicit);
 console.log(`  ${urls.length} page(s): ${urls.join(", ")}`);
 
 const all = new Map(); // url -> section, dedupe by url (page+anchor)
-let total = 0;
 for (const url of urls) {
   const sections = await scrapePage(page, url);
   for (const s of sections) {
@@ -158,7 +149,6 @@ for (const url of urls) {
     if (!all.has(key)) all.set(key, s);
   }
   console.log(`  ✓ ${url}: ${sections.length} section(s)`);
-  total += sections.length;
 }
 await browser.close();
 
