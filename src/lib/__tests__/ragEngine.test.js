@@ -22,13 +22,17 @@ const { mockRetrieve, mockScrape } = vi.hoisted(() => ({
 vi.mock("../embeddings.js", () => ({
   buildIndex: vi.fn(async (chunks) => ({ vectors: chunks, version: "v-hash-1" })),
   retrieveRelevant: mockRetrieve,
+  embedStaticChunks: vi.fn(async (chunks) => chunks || []),
 }));
 vi.mock("../scraper.js", () => ({
   scrapeCurrentPage: mockScrape,
   chunkSections: vi.fn((sections) => sections),
 }));
-// Avoid a real fetch for /site-index.json in jsdom — passthrough the live vectors.
-vi.mock("../siteIndex.js", () => ({ getCombinedIndex: vi.fn(async (live) => live) }));
+// Avoid a real fetch for /site-index.json in jsdom; passthrough merge.
+vi.mock("../siteIndex.js", () => ({
+  loadStaticSiteIndex: vi.fn(async () => []),
+  combineIndexes: vi.fn((live, statik) => [...(live || []), ...(statik || [])]),
+}));
 
 let buildGroundedContext, navigateToSection, getCurrentIndexVersion;
 

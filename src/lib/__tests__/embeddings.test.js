@@ -72,13 +72,13 @@ const CHUNKS = [
   },
 ];
 
-let buildIndex, retrieveRelevant;
+let buildIndex, retrieveRelevant, embedStaticChunks;
 
 beforeEach(async () => {
   // Fresh module state (embedder promise, dbAvailable flag, memCache) per test.
   vi.resetModules();
   mockEmbedder.createEmbedding.mockClear();
-  ({ buildIndex, retrieveRelevant } = await import("../embeddings.js"));
+  ({ buildIndex, retrieveRelevant, embedStaticChunks } = await import("../embeddings.js"));
 });
 
 describe("buildIndex — caching", () => {
@@ -165,5 +165,44 @@ describe("retrieveRelevant — ranking + threshold (FR-3)", () => {
     expect(await retrieveRelevant("pricing", [])).toEqual([]);
     const { vectors } = await buildIndex(CHUNKS);
     expect(await retrieveRelevant("", vectors)).toEqual([]);
+  });
+});
+
+describe("embedStaticChunks — chunks-only site-index (runtime embed + cache)", () => {
+  const STATIC = [
+    {
+      anchor: "install",
+      title: "Install",
+      url: "http://localhost/#install",
+      text: "npm install the package to begin.",
+    },
+    { anchor: "faq", title: "FAQ", url: "http://localhost/faq#top", text: "Frequently asked questions and answers." },
+  ];
+
+  it("embeds vec-less chunks with the widget's own embedder", async () => {
+    const out = await embedStaticChunks(STATIC);
+    expect(out).toHaveLength(STATIC.length);
+    expect(mockEmbedder.createEmbedding).toHaveBeenCalledTimes(STATIC.length);
+    expect(out[0].vec).toBeInstanceOf(Float32Array); // L2-normalized, structured-cloneable
+    expect(out[0].text).toBe(STATIC[0].text); // metadata preserved
+  });
+
+  it("cache hit (same content) skips embedding on 2nd call", async () => {
+    await embedStaticChunks(STATIC);
+    expect(mockEmbedder.createEmbedding).toHaveBeenCalledTimes(STATIC.length);
+    await embedStaticChunks(STATIC); // memCache hit (jsdom has no IDB)
+    expect(mockEmbedder.createEmbedding).toHaveBeenCalledTimes(STATIC.length); // no new embeds
+  });
+
+  it("passes precomputed (vec already present) chunks through without embedding", async () => {
+    const precomputed = STATIC.map((c, i) => ({ ...c, vec: [i, i, i] }));
+    const out = await embedStaticChunks(precomputed);
+    expect(mockEmbedder.createEmbedding).not.toHaveBeenCalled();
+    expect(out[0].vec).toEqual([0, 0, 0]); // original vec preserved
+  });
+
+  it("returns [] for empty input (no model load)", async () => {
+    expect(await embedStaticChunks([])).toEqual([]);
+    expect(mockEmbedder.createEmbedding).not.toHaveBeenCalled();
   });
 });

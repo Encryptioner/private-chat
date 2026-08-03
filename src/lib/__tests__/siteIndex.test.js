@@ -3,11 +3,11 @@
 // fetch resilience, memoization, and the live/static merge de-dupe.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-let loadStaticSiteIndex, getCombinedIndex, _resetStaticIndexCache;
+let loadStaticSiteIndex, combineIndexes, _resetStaticIndexCache;
 
 beforeEach(async () => {
   vi.resetModules();
-  ({ loadStaticSiteIndex, getCombinedIndex, _resetStaticIndexCache } = await import("../siteIndex.js"));
+  ({ loadStaticSiteIndex, combineIndexes, _resetStaticIndexCache } = await import("../siteIndex.js"));
 });
 
 afterEach(() => {
@@ -55,40 +55,30 @@ describe("loadStaticSiteIndex — resolver (m3: param, NOT window config)", () =
   });
 });
 
-describe("getCombinedIndex — merge + de-dupe (live wins)", () => {
-  it("appends static-only chunks; live wins on url collision", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            chunks: [
-              { url: "http://localhost/#pricing", vec: [9], title: "Static Pricing" }, // dup → dropped
-              { url: "http://localhost/#about", vec: [1], title: "About" }, // static-only → kept
-            ],
-          }),
-      })
-    );
+describe("combineIndexes — pure merge + de-dupe (live wins)", () => {
+  it("appends static-only chunks; live wins on url collision (no fetch)", () => {
     const live = [
       { url: "http://localhost/#pricing", vec: [1], title: "Live Pricing" },
       { url: "http://localhost/#contact", vec: [2], title: "Contact" },
     ];
-    const combined = await getCombinedIndex(live, "/idx.json");
+    const statik = [
+      { url: "http://localhost/#pricing", vec: [9], title: "Static Pricing" }, // dup → dropped
+      { url: "http://localhost/#about", vec: [1], title: "About" }, // static-only → kept
+    ];
+    const combined = combineIndexes(live, statik);
     expect(combined).toHaveLength(3);
     const pricing = combined.find((c) => c.url.includes("#pricing"));
     expect(pricing.title).toBe("Live Pricing"); // live wins over stale static
     expect(combined.some((c) => c.url.includes("#about"))).toBe(true);
   });
 
-  it("omits static entries without a vec (un-embedded phase-1 index)", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ chunks: [{ url: "http://localhost/#about", title: "About" }] }),
-      })
-    );
-    expect(await getCombinedIndex([], "/idx.json")).toEqual([]);
+  it("keeps static chunks even without a vec (embedding happens upstream now)", () => {
+    const combined = combineIndexes([], [{ url: "http://localhost/#about", title: "About" }]);
+    expect(combined).toHaveLength(1); // vec-less chunks pass through; ragEngine embeds them
+  });
+
+  it("tolerates null/empty inputs", () => {
+    expect(combineIndexes(null, null)).toEqual([]);
+    expect(combineIndexes([{ url: "a", vec: [1] }], null)).toHaveLength(1);
   });
 });

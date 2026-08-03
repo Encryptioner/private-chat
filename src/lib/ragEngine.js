@@ -9,8 +9,8 @@
 // the robust source. navigateToSection is kept (links still scroll/navigate).
 
 import { scrapeCurrentPage, chunkSections } from "./scraper.js";
-import { buildIndex, retrieveRelevant } from "./embeddings.js";
-import { getCombinedIndex } from "./siteIndex.js";
+import { buildIndex, retrieveRelevant, embedStaticChunks } from "./embeddings.js";
+import { loadStaticSiteIndex, combineIndexes } from "./siteIndex.js";
 import { RAG } from "./constants.js";
 
 let currentIndex = null; // [{vec, anchor, title, url, text}, ...] live + static merge
@@ -37,7 +37,11 @@ export async function initPageIndex(externalSections, siteIndexUrl) {
   const chunks = chunkSections(sections, { maxWords: RAG.CHUNK_MAX_WORDS });
   const live = await buildIndex(chunks); // {vectors, version}; cache hit = no model load
   currentIndexVersion = live.version;
-  currentIndex = await getCombinedIndex(live.vectors, siteIndexUrl); // static merge (m3)
+  // Cross-page awareness: load the static site-index.json, embed any vec-less
+  // chunks with our own embedder (cached by content hash), merge (live wins).
+  const staticRaw = await loadStaticSiteIndex(siteIndexUrl);
+  const staticVec = await embedStaticChunks(staticRaw);
+  currentIndex = combineIndexes(live.vectors, staticVec);
   return currentIndex.length;
 }
 

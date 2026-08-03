@@ -36,15 +36,17 @@ export async function loadStaticSiteIndex(indexUrl) {
 }
 
 /**
- * Combines live current-page vectors (always fresh, embedded client-side) with
- * the static cross-page index (precomputed). De-dupes by url so the live page's
- * own vectors win over any stale static copy of itself.
+ * Pure de-duping merge of the live current-page vectors with the (already-
+ * embedded) static cross-page vectors. Live wins on url collision. No fetch, no
+ * embedding — the caller (ragEngine) loads + embeds the static chunks first via
+ * loadStaticSiteIndex + embedStaticChunks. Static chunks may carry precomputed
+ * `vec` or be embedded at runtime; both work (the vec filter moved to the embed
+ * step — a vec-less chunk never reaches here).
  */
-export async function getCombinedIndex(livePageVectors, indexUrl) {
-  const staticChunks = await loadStaticSiteIndex(indexUrl);
-  const seen = new Set(livePageVectors.map((v) => v.url));
-  const staticOnly = staticChunks.filter((c) => c.vec && !seen.has(c.url));
-  return [...livePageVectors, ...staticOnly];
+export function combineIndexes(liveVectors, staticVectors) {
+  const seen = new Set((liveVectors || []).map((v) => v.url));
+  const staticOnly = (staticVectors || []).filter((c) => !seen.has(c.url));
+  return [...(liveVectors || []), ...staticOnly];
 }
 
 // Test-only: reset the module-level fetch memo between unit tests.
