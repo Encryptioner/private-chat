@@ -12,24 +12,33 @@ if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function scrollIntoView() {};
 }
 
-const { mockRetrieve } = vi.hoisted(() => ({ mockRetrieve: vi.fn() }));
+const { mockRetrieve, mockScrape } = vi.hoisted(() => ({
+  mockRetrieve: vi.fn(),
+  mockScrape: vi.fn(() => [
+    { anchor: "pricing", title: "Pricing", url: "http://localhost/#pricing", text: "Pricing is $9." },
+  ]),
+}));
 
 vi.mock("../embeddings.js", () => ({
   buildIndex: vi.fn(async (chunks) => ({ vectors: chunks, version: "v-hash-1" })),
   retrieveRelevant: mockRetrieve,
 }));
 vi.mock("../scraper.js", () => ({
-  scrapeCurrentPage: vi.fn(() => [
-    { anchor: "pricing", title: "Pricing", url: "http://localhost/#pricing", text: "Pricing is $9." },
-  ]),
+  scrapeCurrentPage: mockScrape,
   chunkSections: vi.fn((sections) => sections),
 }));
+// Avoid a real fetch for /site-index.json in jsdom — passthrough the live vectors.
+vi.mock("../siteIndex.js", () => ({ getCombinedIndex: vi.fn(async (live) => live) }));
 
 let buildGroundedContext, navigateToSection, getCurrentIndexVersion;
 
 beforeEach(async () => {
   vi.resetModules();
   mockRetrieve.mockReset();
+  mockScrape.mockReset();
+  mockScrape.mockReturnValue([
+    { anchor: "pricing", title: "Pricing", url: "http://localhost/#pricing", text: "Pricing is $9." },
+  ]);
   document.body.innerHTML = "";
   ({ buildGroundedContext, navigateToSection, getCurrentIndexVersion } = await import("../ragEngine.js"));
 });
@@ -52,10 +61,17 @@ describe("buildGroundedContext (FR-4)", () => {
     expect(res.sources[0].vec).toBeUndefined(); // no heavy vector leaked to UI
   });
 
-  it("returns null systemContent when nothing clears threshold (context-less, M1)", async () => {
+  it("returns null systemContent when nothing clears threshold (off-topic, M1)", async () => {
     mockRetrieve.mockResolvedValue([]);
     const res = await buildGroundedContext("quantum computing");
     expect(res.systemContent).toBeNull();
+    expect(res.sources).toEqual([]);
+  });
+
+  it("empty index (all-nav page / load failed) → degradation hint, not null (M1 gap)", async () => {
+    mockScrape.mockReturnValue([]); // page yielded 0 scrapeable chunks
+    const res = await buildGroundedContext("anything");
+    expect(res.systemContent).toContain("unavailable"); // hint so the model doesn't hallucinate
     expect(res.sources).toEqual([]);
   });
 

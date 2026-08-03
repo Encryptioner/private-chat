@@ -8,6 +8,7 @@ import { CHAT_ROLE as ROLE, formatChat, getWllamaInstance, PRESET_MODELS } from 
 import { loadChatSessions, saveChatSessions, createNewSession, updateSession, deleteSession } from "./lib/chatStorage";
 import { buildGroundedContext, getCurrentIndexVersion, initPageIndex, hasIndex } from "./lib/ragEngine.js";
 import { installHostNavWatcher } from "./lib/hostNav.js";
+import { formatMessageContent } from "./lib/formatMessage.js";
 import {
   Box,
   Callout,
@@ -44,29 +45,8 @@ const preventClickAction = (e) => e.preventDefault();
 // eslint-disable-next-line no-console
 const copyToClipboard = (text) => navigator.clipboard.writeText(text).catch((e) => console.error(e));
 
-const formatMessageContent = (content) => {
-  if (!content || content === ELLIPSIS) return content;
-
-  // Handle code blocks with syntax highlighting
-  let formattedContent = content.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
-    return `<div class="code-block">
-      <div class="code-header">${lang || "code"}</div>
-      <pre><code>${code.trim()}</code></pre>
-    </div>`;
-  });
-
-  // Handle inline code
-  formattedContent = formattedContent.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-
-  // Handle URLs - make them clickable
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  formattedContent = formattedContent.replace(
-    urlRegex,
-    (url) => `<a href="${url}" class="message-link" target="_blank" rel="noopener noreferrer">${url}</a>`
-  );
-
-  return formattedContent;
-};
+// formatMessageContent + escapeHtml live in ./lib/formatMessage.js (testable,
+// XSS-hardened — escapes model output before the code-block/URL wrappers).
 
 const messageIdGenerator = (function* () {
   let id = 0;

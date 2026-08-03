@@ -48,6 +48,31 @@
 - [ ] XSS: no `rehype-raw`; scraped `<script>` renders as text (R6)
 - [ ] Full spec acceptance criteria from `spec-v1.md` all checkable on the two target sites
 
+## Implementation Notes (2026-08-03)
+
+- **SW `*.gguf` cache (M3/R5):** cache-on-first-fetch into `MODEL_CACHE`, cache-first on
+  repeat. NOT in `CORE_ASSETS` precache (33MB+ on install is the failure M3 prevents).
+  `VERSION` bumped `v1.0.5 → v1.0.6` (per Note 53) so old SWs release their caches.
+- **Degradation hint (M1 gap):** `buildGroundedContext` returns a "page context unavailable"
+  system note when the index is empty (all-nav page / load failed / IDB unavailable), so the
+  model doesn't hallucinate site info. Distinct from the off-topic case (index has chunks,
+  none clear threshold → `null` → generic chat, correct). Unit-tested.
+- **XSS hardening (R6 + NFR Security — MODERATE adjustment):** the spec's R6 check scoped XSS
+  to `Markdown.jsx`/`rehype-raw` (clean), but `formatMessageContent` built an HTML string
+  from **unsanitized** model output and rendered it via `dangerouslySetInnerHTML` — a path
+  RAG amplifies (scraped text → model context → echoed → live). **Fix:** escape HTML first
+  (`src/lib/formatMessage.js`), then apply the code-block/URL wrappers. Code blocks now render
+  literal HTML as text (correct; the prior live-render was itself a bug). Both render branches
+  (`Markdown` and `dangerouslySetInnerHTML`) are now safe. Unit-tested (XSS payloads → text).
+  This fulfills the spec's stated NFR Security intent; recorded in `spec-v1.md` Change Log.
+- **Playwright harness (M2):** `playwright.config.js` + `tests/e2e/rag.spec.js`. Every app-loaded
+  test downloads the ~35MB GGUF, so the model-backed suite is gated behind `RAG_E2E_MODEL=1`
+  (skip-by-default → CI-safe). This is the manual gate per spike N3; the **49 unit tests are the
+  always-green automated layer**. `vite preview` (no COOP/COEP) matches prod threading (Note 55).
+- **portfolio-template (FR-8):** embed snippet + `PRIVATE_CHAT_CONFIG = { label }` added to its
+  `public/index.html` (local edit only). Commit to that repo + GitHub Pages deploy + live verify
+  = **human handoff**. No private-chat code fork (FR-6 honored).
+
 ## Notes
 - **No phased rollout.** The full feature deploys as one unit once this story's DoD passes. portfolio-template gets the snippet only after verification.
 - **SW version bump:** adding the `.gguf` branch changes cache behavior → bump `VERSION`/`STATIC_CACHE`/`MODEL_CACHE` in sw.js (currently `v1.0.4`) so old SWs release. Follow the existing versioning pattern.

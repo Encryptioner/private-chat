@@ -77,6 +77,19 @@ export async function buildGroundedContext(userQuestion, siteIndexUrl) {
   // live one (grill Maj3).
   const index = currentIndex;
   const version = currentIndexVersion;
+
+  // Degradation hint (grill M1 gap): the page yielded no context (all-nav/footer
+  // page, embedder load failed, IDB unavailable). Tell the model instead of letting
+  // it hallucinate site info. Distinct from the off-topic case below (index has
+  // chunks but none clear threshold → null → generic chat, which is correct).
+  if (!index || index.length === 0) {
+    return {
+      systemContent: `${BASE_INSTRUCTIONS}\n\nThe page context is unavailable; answer generally or say you cannot see this page's content.`,
+      sources: [],
+      version,
+    };
+  }
+
   const relevant = await retrieveRelevant(userQuestion, index, RAG.TOP_K);
   return {
     systemContent: relevant.length ? buildSystemMessage(relevant) : null,
