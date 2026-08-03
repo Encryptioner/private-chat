@@ -93,9 +93,7 @@ async function discoverPages(page, start, maxDepth, explicit) {
       continue; // unreachable page — skip, keep crawling
     }
     const links = await page.evaluate(() =>
-      [...document.querySelectorAll("a[href]")]
-        .map((a) => a.href)
-        .map((h) => h.split("#")[0])
+      [...document.querySelectorAll("a[href]")].map((a) => a.href).map((h) => h.split("#")[0])
     );
     for (const l of [...new Set(links)]) {
       if (inScope(l) && !seen.has(l)) queue.push({ url: l, d: d + 1 });
@@ -130,7 +128,12 @@ async function scrapePage(page, url) {
 }
 
 // --- main ---
-const explicit = pagesArg ? pagesArg.split(",").map((s) => s.trim()).filter(Boolean) : null;
+const explicit = pagesArg
+  ? pagesArg
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+  : null;
 let browser;
 try {
   browser = await chromium.launch();
