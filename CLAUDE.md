@@ -10,14 +10,15 @@ This is a browser-based AI chat assistant that runs LLMs (Large Language Models)
 
 - **Frontend**: React application with Vite as the build tool
 - **LLM Engine**: Wllama (@wllama/wllama) - WebAssembly-based LLM inference
-- **Site-Aware RAG**: When embedded on a same-origin host, the widget scrapes the page → chunks → embeds locally (a *dedicated* second Wllama instance running `bge-small-en-v1.5`) → retrieves top-k → grounds the answer and renders "Related sections" links. Embedder loads lazily on the first question; vectors are IndexedDB-cached. See `src/lib/ragEngine.js`, `embeddings.js`, `scraper.js`.
+- **Site-Aware RAG**: When embedded, `embed.js` (running in the **host** context) scrapes the host page — works on **any** origin (same- or cross-origin, since the host is always same-origin to itself) — and bridges the sections to the chat iframe via `postMessage`. The iframe chunks → embeds locally (a *dedicated* second Wllama instance running `bge-small-en-v1.5`) → retrieves top-k → grounds the answer and renders "Related sections" links. Site owners can supply a custom scraper via `PRIVATE_CHAT_CONFIG.getSections`. The embedder loads lazily on the first question; vectors are IndexedDB-cached. Integration guide: `docs/SITE-INTEGRATION.md`. See `src/scripts/embed.ts`, `src/lib/ragEngine.js`, `embeddings.js`, `scraper.js`.
 - **UI Framework**: Radix UI themes for consistent design components
 - **Model Format**: GGUF format models from Hugging Face
 - **State Management**: React hooks (no external state management)
 
 ### Key Components
 
-- `src/App.jsx`: Main application component containing all chat logic (incl. the embed-mode RAG branch in `submitPrompt`)
+- `src/App.jsx`: Main application component containing all chat logic (incl. the embed-mode RAG branch in `submitPrompt` + the host→iframe `postMessage` section consumer)
+- `src/scripts/embed.ts`: Host-context embed script (built to `dist/embed.js`). Scrapes the host (default or `PRIVATE_CHAT_CONFIG.getSections`), bridges sections to the iframe via `postMessage`, re-scrapes on SPA nav, and handles cross-origin scroll-to. Same-origin iframe-side scrape is the fallback.
 - `src/lib/wllama.js`: Wllama integration, model definitions, and chat formatting
 - `src/lib/ragEngine.js`: Site-aware RAG — grounded system-message builder + `navigateToSection` (host scroll/nav)
 - `src/lib/embeddings.js`: Local vector index (its **own** Wllama embedder instance, not the chat singleton) + brute-force retrieval; IndexedDB-cached
