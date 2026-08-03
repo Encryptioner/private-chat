@@ -33,6 +33,9 @@ const dom = new JSDOM(html, { url: target.startsWith("http") ? target : "https:/
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.Node = dom.window.Node;
+// Expose browser globals scrapers use (location, fetch, etc.) so a scraper written
+// for the real page runs unchanged in this tool.
+globalThis.location = dom.window.location;
 
 let sections;
 if (scraperPath) {
