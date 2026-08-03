@@ -75,6 +75,17 @@ describe("buildGroundedContext (FR-4)", () => {
     expect(res.sources).toEqual([]);
   });
 
+  it("uses external sections (host-side, from embed.ts) and skips iframe scrape", async () => {
+    mockRetrieve.mockResolvedValue([
+      { anchor: "ext", title: "Ext", url: "http://localhost/#ext", text: "external host content", score: 0.5 },
+    ]);
+    const external = [{ anchor: "ext", title: "Ext", url: "http://localhost/#ext", text: "external host content" }];
+    mockScrape.mockClear();
+    const res = await buildGroundedContext("q", external);
+    expect(mockScrape).not.toHaveBeenCalled(); // external sections win
+    expect(res.systemContent).toContain("external host content");
+  });
+
   it("embeds the query once per call; index version is stable without a re-scrape", async () => {
     mockRetrieve.mockResolvedValue([{ anchor: "a", title: "A", url: "http://localhost/#a", text: "t", score: 0.5 }]);
     await buildGroundedContext("q1");
@@ -109,17 +120,28 @@ describe("navigateToSection (FR-5)", () => {
     expect(fakeParent.location.href).toBe("http://localhost/pricing-page");
   });
 
-  it("falls back to this window when parent.document throws (cross-origin)", () => {
-    // Same-page against own document, no parent access.
-    document.body.innerHTML = '<div id="me">visible</div>';
-    const el = document.getElementById("me");
-    const scrollSpy = vi.spyOn(el, "scrollIntoView");
+  it("cross-origin parent → asks embed.ts to scroll/navigate via postMessage", () => {
+    const postMessage = vi.fn();
     vi.stubGlobal("parent", {
+      // parent.document throws → detected as cross-origin
       get document() {
         throw new TypeError("cross-origin");
       },
+      postMessage,
     });
+    navigateToSection({ url: new URL("#host-el", window.location.href).href, anchor: "host-el" });
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "private-chat:scroll-to", anchor: "host-el" }),
+      "*"
+    );
+  });
+
+  it("standalone (window.parent === window) scrolls its own document", () => {
+    document.body.innerHTML = '<div id="me">visible</div>';
+    const el = document.getElementById("me");
+    const scrollSpy = vi.spyOn(el, "scrollIntoView");
+    // jsdom default: window.parent === window (no stub) → standalone branch
     navigateToSection({ url: new URL("#me", window.location.href).href, anchor: "me" });
-    expect(scrollSpy).toHaveBeenCalled();
+    expect(scrollSpy).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
   });
 });

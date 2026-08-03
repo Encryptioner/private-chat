@@ -17,16 +17,23 @@ let currentIndex = null; // [{vec, anchor, title, url, text}, ...] live + static
 let currentIndexVersion = ""; // contentHash; bumped on every initPageIndex (race guard, grill Maj3)
 
 /**
- * Scrapes + chunks the host page, embeds it, and merges the optional static
- * site-index.json. Idempotent — safe to re-call on host SPA navigation (Story 5);
+ * Builds the live page index from sections, embeds them, and merges the optional
+ * static site-index.json. Idempotent — safe to re-call on host SPA navigation;
  * a cache hit (unchanged contentHash) skips re-embedding. Bumps currentIndexVersion
- * only when content actually changes, so a concurrent in-flight query detects the
- * swap via version mismatch (grill Maj3).
+ * only when content changes, so a concurrent in-flight query detects the swap via
+ * version mismatch (grill Maj3).
+ *
+ * Sections source (precedence):
+ *   1. `externalSections` — posted host-side by embed.ts (works cross-origin).
+ *   2. fallback: `scrapeCurrentPage()` from inside the iframe (same-origin only).
+ *
+ * @param {Array} [externalSections] host-side sections from embed.ts postMessage
  * @param {string} [siteIndexUrl] optional static-index URL (query param from embed.ts)
  * @returns {Promise<number>} chunk count
  */
-export async function initPageIndex(siteIndexUrl) {
-  const sections = scrapeCurrentPage();
+export async function initPageIndex(externalSections, siteIndexUrl) {
+  const sections =
+    Array.isArray(externalSections) && externalSections.length > 0 ? externalSections : scrapeCurrentPage();
   const chunks = chunkSections(sections, { maxWords: RAG.CHUNK_MAX_WORDS });
   const live = await buildIndex(chunks); // {vectors, version}; cache hit = no model load
   currentIndexVersion = live.version;
@@ -63,13 +70,20 @@ function buildSystemMessage(relevantChunks) {
  * loads LAZILY here on first retrieve/init — NOT on widget open (grill Maj2).
  *
  * @param {string} userQuestion
+ * @param {Array} [externalSections] host-side sections from embed.ts postMessage
  * @param {string} [siteIndexUrl] optional static-index URL (forwarded by embed.ts)
  * @returns {Promise<{systemContent:string, sources:Array, version:string}>}
  *   systemContent=null when no chunks clear threshold → caller keeps its generic
  *   system message (context-less chat, no links).
  */
-export async function buildGroundedContext(userQuestion, siteIndexUrl) {
-  if (!currentIndex) await initPageIndex(siteIndexUrl);
+export async function buildGroundedContext(userQuestion, externalSections, siteIndexUrl) {
+  // (Re)build when there's no index, OR when the index is empty but host sections
+  // have since arrived (race: first question fired before embed.ts posted sections
+  // → empty cross-origin scrape → now sections are available, so rebuild). Does NOT
+  // re-init a legitimately-empty index when no sections exist (all-nav page).
+  if (!currentIndex || (currentIndex.length === 0 && externalSections && externalSections.length > 0)) {
+    await initPageIndex(externalSections, siteIndexUrl);
+  }
 
   // Snapshot index + version TOGETHER so a concurrent Story 5 re-scrape can't
   // pair a new vector set with an old version (or vice versa). retrieveRelevant
@@ -99,42 +113,69 @@ export async function buildGroundedContext(userQuestion, siteIndexUrl) {
 }
 
 /**
- * Navigate the HOST (parent) page to a section. Same-page → smooth scroll +
- * transient outline highlight; cross-path → navigate the parent; cross-origin
- * parent → best-effort this window. Called when the visitor clicks a link.
+ * Navigate the HOST (parent) page to a section.
+ *   same-origin parent → smooth scroll + transient highlight (same page), or
+ *     navigate the parent (cross-page).
+ *   cross-origin parent → ask embed.ts (host context) to scroll/navigate via
+ *     postMessage — the iframe can't touch a cross-origin host DOM, but embed.ts
+ *     can always reach its own DOM. Falls back to this window if no parent.
+ * Called when the visitor clicks a "Related sections" link.
  * @param {{url?: string, anchor?: string}} pointer
  */
 export function navigateToSection({ url, anchor } = {}) {
   if (!url && !anchor) return;
 
-  // ponytail: chat is in an iframe; move the host page. Cross-origin parent
-  // READ throws; we fall back to this window. location SET is best-effort.
-  let targetWin, targetDoc, currentPath;
+  // Resolve the target. Three cases:
+  //  - same-origin parent (real embed): scroll/nav the host directly.
+  //  - cross-origin parent: the iframe can't touch the host DOM, so ask embed.ts
+  //    (host context) to scroll/nav via postMessage.
+  //  - no parent / standalone (window.parent === window): act on this document.
+  let sameOriginParent = false;
+  let crossOriginParent = false;
+  let targetDoc = document;
+  let targetWin = window;
+  let currentPath = window.location.pathname;
   try {
     if (window.parent && window.parent !== window) {
-      targetWin = window.parent;
       targetDoc = window.parent.document; // throws cross-origin
+      targetWin = window.parent;
       currentPath = window.parent.location.pathname;
-    } else {
-      throw new Error("no parent");
+      sameOriginParent = true;
     }
   } catch {
-    targetWin = window;
-    targetDoc = document;
-    currentPath = window.location.pathname;
+    crossOriginParent = true;
   }
 
-  const samePage = url ? new URL(url, window.location.href).pathname === currentPath : true;
+  const scrollIntoView = (doc) => {
+    if (!anchor) return false;
+    const el = doc.getElementById(anchor);
+    if (!el) return false;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    el.style.outline = "2px solid var(--accent-9, #2dd4bf)";
+    setTimeout(() => (el.style.outline = ""), 1500);
+    return true;
+  };
 
-  if (samePage && anchor) {
-    const el = targetDoc.getElementById(anchor);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-      el.style.outline = "2px solid var(--accent-9, #2dd4bf)";
-      setTimeout(() => (el.style.outline = ""), 1500);
+  if (sameOriginParent) {
+    const samePage = url ? new URL(url, window.location.href).pathname === currentPath : true;
+    if (samePage && scrollIntoView(targetDoc)) return;
+    if (url) targetWin.location.href = url; // cross-page navigation on the host
+    return;
+  }
+
+  if (crossOriginParent) {
+    // Ask embed.ts to scroll/navigate the host (it can always reach its own DOM).
+    // ponytail: targetOrigin "*" — the iframe can't know the host origin reliably;
+    // embed.ts verifies the message source instead.
+    try {
+      window.parent.postMessage({ type: "private-chat:scroll-to", url, anchor }, "*");
       return;
+    } catch {
+      /* fall through to own-window handling */
     }
   }
 
-  if (url) targetWin.location.href = url; // cross-page navigation on the host
+  // Standalone (no parent) or postMessage failed: act on this document.
+  if (scrollIntoView(document)) return;
+  if (url) window.location.href = url;
 }

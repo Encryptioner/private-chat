@@ -2,14 +2,27 @@ declare global {
   interface Window {
     loadChatApp: (elementId: string) => void;
     // Set by the HOST page before embed.js loads (spec FR-6). embed.ts runs in the
-    // host context and CAN read this; the cross-origin iframe cannot, so these are
-    // forwarded onto the iframe URL as query params (m3).
+    // host context and CAN read this; the cross-origin iframe cannot, so scalar
+    // fields (label, siteIndexUrl) are forwarded onto the iframe URL as query params.
+    // getSections runs HOST-side and its result is bridged via postMessage — this is
+    // how the widget works on cross-origin sites (the iframe can't scrape a
+    // cross-origin parent, but embed.ts can always read its own DOM).
     PRIVATE_CHAT_CONFIG?: {
       label?: string;
       siteIndexUrl?: string;
+      getSections?: (rootDoc: Document) => ChatSection[] | Promise<ChatSection[]>;
     };
   }
 }
+
+// A chunk of host content for the chat to ground on. anchor/title/url are
+// optional (omit → grounded answer with no "Related sections" link).
+type ChatSection = { anchor?: string; title?: string; url?: string; text: string };
+
+// Host-side scraper (DOM-pure) — bundled into embed.js. Runs in the HOST context
+// where the host DOM is always same-origin to itself, so scraping works on ANY
+// site (unlike the iframe, which can't read a cross-origin parent).
+import { scrapeCurrentPage } from '../lib/scraper.js';
 
 const embedScriptId = 'aiChatEmbedScript';
 const defaultDivId = 'ai-chat-embed-div';
@@ -96,8 +109,83 @@ class EmbedScript {
     // Allow necessary permissions for WebAssembly
     iframe.allow = 'cross-origin-isolated';
     iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
-    
+
+    // Bridge host-side sections to the iframe + handle its scroll requests.
+    // targetOrigin restricts postMessage to this iframe's origin only.
+    this._attachSectionBridge(iframe, iframeUrl.origin);
+
     return iframe;
+  }
+
+  // Sections the chat should ground on. A custom getSections wins; otherwise the
+  // default scraper reads the host page. Either way it runs HOST-side, so it works
+  // on any origin. Never throws — a failure degrades to [] (context-less chat).
+  private async _computeSections(): Promise<ChatSection[]> {
+    const custom = window.PRIVATE_CHAT_CONFIG?.getSections;
+    try {
+      const result = custom ? await custom(document) : scrapeCurrentPage(document.body);
+      return Array.isArray(result) ? (result as ChatSection[]) : [];
+    } catch (error) {
+      console.debug('[private-chat] section scrape failed:', error);
+      return [];
+    }
+  }
+
+  // Scroll/navigate the HOST page on behalf of a (possibly cross-origin) iframe.
+  private _scrollHost(url?: string, anchor?: string): void {
+    if (anchor) {
+      const el = document.getElementById(anchor);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.style.outline = '2px solid var(--accent-9, #2dd4bf)';
+        setTimeout(() => (el.style.outline = ''), 1500);
+        return;
+      }
+    }
+    if (url) window.location.href = url;
+  }
+
+  // Host→iframe section bridge + iframe→host scroll bridge.
+  // postMessage works cross-origin, so this is what makes the widget usable on
+  // any site (the iframe itself can't scrape a cross-origin parent).
+  private _attachSectionBridge(iframe: HTMLIFrameElement, targetOrigin: string): void {
+    const send = async () => {
+      const sections = await this._computeSections();
+      try {
+        iframe.contentWindow?.postMessage({ type: 'private-chat:sections', sections }, targetOrigin);
+      } catch (error) {
+        console.debug('[private-chat] postMessage sections failed:', error);
+      }
+    };
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== iframe.contentWindow) return; // only our iframe
+      const data = event.data as { type?: string; url?: string; anchor?: string } | null;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'private-chat:ready') {
+        void send(); // React app mounted its listener — deliver sections
+      } else if (data.type === 'private-chat:scroll-to') {
+        this._scrollHost(data.url, data.anchor); // cross-origin link click
+      }
+    };
+    window.addEventListener('message', onMessage);
+
+    // SPA navigation: re-scrape the host (debounced) and re-post. MutationObserver
+    // catches pushState (no popstate) and async content loads; the iframe's
+    // contentHash cache skips re-embedding when content is unchanged.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const debounced = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void send(), 500);
+    };
+    window.addEventListener('popstate', debounced);
+    window.addEventListener('hashchange', debounced);
+    const observer = new MutationObserver(debounced);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Best-effort initial send (idempotent with the ready handshake; covers any
+    // race where 'ready' was missed).
+    iframe.addEventListener('load', () => void send());
   }
 
   // Create floating chat widget with toggle functionality

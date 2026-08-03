@@ -82,6 +82,11 @@ function App() {
   const [isIndexing, setIsIndexing] = useState(false);
   const [widgetLabel, setWidgetLabel] = useState(null);
   const siteIndexUrlRef = useRef(null);
+  // Host→iframe section bridge (cross-origin support). embed.ts posts page
+  // sections via postMessage; we store them here and feed them to the RAG index.
+  const externalSectionsRef = useRef(null);
+  const externalModeRef = useRef(false);
+  const hostNavUninstallRef = useRef(null);
   const [domainParam, setDomainParam] = useState(null);
   const selectedModel = localModelFiles.length
     ? { name: localModelFiles[0].name, url: "file", license: "" }
@@ -188,16 +193,51 @@ function App() {
 
     loadModel();
 
-    // SPA re-scrape (FR-9): re-index on host client-side navigation. Lazy — only
-    // refreshes once the index exists (after the first question), so the embedder
-    // never loads on widget open or on pre-question navigation (grill Maj2).
-    // installHostNavWatcher returns its own uninstall fn, returned here for cleanup.
+    // Embed mode: set up the host→iframe section bridge (cross-origin support)
+    // + the iframe-side SPA watcher as a fallback.
     if (embeddedParam === "true") {
-      return installHostNavWatcher({
+      // Receive page sections from embed.ts (host-side scrape → works on any
+      // origin). Store them lazily — the embedder only loads on the first
+      // question (grill Maj2), NOT when sections arrive.
+      const onHostMessage = (event) => {
+        if (event.source !== window.parent) return;
+        const data = event.data;
+        if (!data || data.type !== "private-chat:sections") return;
+        externalSectionsRef.current = data.sections || null;
+        if (!externalModeRef.current) {
+          // embed.ts now owns re-scrape; stop the iframe-side watcher (double-work).
+          externalModeRef.current = true;
+          if (hostNavUninstallRef.current) {
+            hostNavUninstallRef.current();
+            hostNavUninstallRef.current = null;
+          }
+        }
+        // Re-index only if the index already exists (lazy). buildIndex's
+        // contentHash cache makes unchanged content a cheap no-op.
+        if (hasIndex()) initPageIndex(externalSectionsRef.current, siteIndexUrlRef.current);
+      };
+      window.addEventListener("message", onHostMessage);
+
+      // Tell embed.ts we're ready to receive sections (it can't post before we
+      // listen; this completes the handshake).
+      try {
+        window.parent.postMessage({ type: "private-chat:ready" }, "*");
+      } catch {
+        /* no parent (standalone) — ignore */
+      }
+
+      // Fallback: if embed.ts never posts sections (e.g. a cached old embed.js),
+      // the iframe-side hostNav re-scrapes same-origin on navigation.
+      hostNavUninstallRef.current = installHostNavWatcher({
         onNavigate: () => {
-          if (hasIndex()) initPageIndex(siteIndexUrlRef.current);
+          if (hasIndex()) initPageIndex(null, siteIndexUrlRef.current);
         },
       });
+
+      return () => {
+        window.removeEventListener("message", onHostMessage);
+        if (hostNavUninstallRef.current) hostNavUninstallRef.current();
+      };
     }
   }, []);
 
@@ -372,7 +412,11 @@ function App() {
     if (isEmbedded) {
       setIsIndexing(true);
       try {
-        const grounded = await buildGroundedContext(currentPrompt.trim(), siteIndexUrlRef.current);
+        const grounded = await buildGroundedContext(
+          currentPrompt.trim(),
+          externalSectionsRef.current,
+          siteIndexUrlRef.current
+        );
         if (grounded.systemContent) {
           systemContent = grounded.systemContent;
           sourcesVersion = grounded.version;

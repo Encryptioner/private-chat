@@ -81,26 +81,36 @@ If you want the chat to load in a specific location:
 <div id="ai-chat-embed-div"></div>
 ```
 
-### Site-Aware Configuration (Optional)
+### Site-Aware Mode (RAG)
 
-Set `window.PRIVATE_CHAT_CONFIG` **before** the embed script loads to customize the widget per site. The config is read in the host context and forwarded to the chat iframe — no per-site code fork.
+When embedded, the widget reads the host page and answers from its own content — with
+clickable "Related sections" links. It works on **any** site (same-origin, cross-origin,
+static, or dynamic SPA) with zero config: `embed.js` scrapes the host page and bridges the
+content to the chat iframe via `postMessage`.
+
+Set `window.PRIVATE_CHAT_CONFIG` **before** the embed script loads to customize it (all fields
+optional):
 
 ```html
 <script>
-  // Both fields optional
   window.PRIVATE_CHAT_CONFIG = {
-    label: "Acme Labs",          // shown in the widget greeting
-    siteIndexUrl: "/site-index.json" // optional pre-built cross-page index
+    label: "Acme Labs",              // shown in the widget greeting
+    siteIndexUrl: "/site-index.json", // optional pre-built cross-page index
+    getSections: null                 // optional custom scraper (see docs)
   };
 </script>
 <script id="aiChatEmbedScript" defer src="https://encryptioner.github.io/private-chat/embed.js"></script>
 ```
 
-- **No config** → the widget still works: it live-scrapes the current page (same-origin only) and grounds answers in that.
-- **Cross-origin host** → scraping silently disables; the widget falls back to a generic, context-less chat (no crash).
-- `siteIndexUrl` is optional (phase-2 cross-page index); a missing file is ignored.
+- **No config** → the widget live-scrapes the current page and grounds answers in it.
+- `getSections` → supply your own scraper (CMS, JSON-LD, an API, a content region). Runs in
+  your page's context; return `{anchor?, title?, url?, text}` per section.
+- Dynamic/SPA sites re-scrape automatically on client-side navigation.
+- The widget answers **only** from retrieved content; if a question isn't covered, it says so.
 
-> The widget answers **only** from the page's retrieved content. If a question isn't covered, it says so. Up to 3 "Related sections" links appear under the answer when relevant.
+📖 **Full integration guide:** [`docs/SITE-INTEGRATION.md`](docs/SITE-INTEGRATION.md) — the
+three running modes, the custom-scraper contract with examples, SPA behavior, link handling,
+troubleshooting, and privacy/security notes.
 
 ### Advanced Integration
 

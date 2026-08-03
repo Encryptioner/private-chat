@@ -5,6 +5,11 @@
 // the unit suite (src/lib/__tests__) is the always-green automated layer.
 //
 // Run: RAG_E2E_MODEL=1 pnpm test:e2e   (after: pnpm build, npx playwright install chromium)
+//
+// Cross-origin coverage: the host→iframe section bridge + cross-origin link scroll
+// are unit-tested (ragEngine: external-sections precedence, navigateToSection
+// postMessage). A full multi-origin E2E needs a second static server (host on
+// 127.0.0.1, app on localhost) — see docs/SITE-INTEGRATION.md for the manual setup.
 import { test, expect } from "@playwright/test";
 
 const MODEL_GATE = process.env.RAG_E2E_MODEL === "1";
