@@ -80,7 +80,7 @@ Set this **before** the script tag. All fields are optional.
 | Field | Type | Purpose |
 |-------|------|---------|
 | `label` | `string` | Replaces the "Hi, how may I help you?" greeting (e.g. `"How can Acme Labs help you?"`). |
-| `siteIndexUrl` | `string` | URL of a pre-built static index (`site-index.json`) for cross-page awareness. Missing file = ignored. (Phase-2 feature; the merge contract is ready, no crawler ships yet.) |
+| `siteIndexUrl` | `string` | URL of a pre-built static index (`site-index.json`) for cross-page awareness. Missing file = ignored. Generate it with the bundled crawler (Node or Python) — see [Cross-page awareness](#cross-page-awareness-via-site-indexjson) below. |
 | `getSections` | `function` | Your own scraper. See below. |
 
 **No config** → the widget live-scrapes the current page and grounds answers in it.
@@ -242,6 +242,64 @@ pnpm build:site-index -- --url https://yoursite.example/ [--depth 1] \
 > Worked example: `branchdiff-releases` ships a `site-index.json` covering its landing + guideline +
 > changelog (3 pages, ~189 chunks), so the chat answers install/changelog/guideline questions from any
 > page and links to the right one.
+
+### Alternative crawler — Python (Scrapling)
+
+A second, **equivalent** crawler exists for site owners who prefer Python, need to scrape a
+**local/dev URL**, or hit **anti-bot protection** (Cloudflare) on the deployed site. It produces the
+**identical** `site-index.json` — it injects the same `src/lib/scraper.js` into each rendered page, so
+chunk quality matches the Node crawler and the live widget.
+
+```bash
+# one-time
+pip install "scrapling[fetchers]"
+scrapling install                 # downloads Chromium
+
+# crawl — works against a local/dev URL OR a deployed one
+python tools/scrapling-site-index.py \
+  --url http://localhost:5173/ [--depth 1] [--pages /,/about] \
+  [--out ./site-index.json] [--stealth] [--solve-cloudflare]
+```
+
+| Flag | When |
+|------|------|
+| `--stealth` | Site has bot protection. Switches to Scrapling's `StealthyFetcher` (TLS fingerprint impersonation). |
+| `--solve-cloudflare` | `--stealth` only: solve Cloudflare Turnstile/interstitial challenges. |
+| `--network-idle` | Deployed SPA that needs the network to settle. **Do not** use with dev servers. |
+
+> **Local/dev servers (Vite, Next, Astro, …):** the Python crawler defaults to a fixed post-load wait
+> (`--settle`, ms) instead of `network-idle`, because dev servers keep an HMR WebSocket open that prevents
+> the network from ever going idle (which would hang the crawl). The Node crawler's `networkidle` has the
+> same caveat — prefer the Python crawler or `--settle` when scraping `localhost`.
+
+**Which one should I use?** Reach for Scrapling when you need Python, a dev URL, or stealth. Otherwise
+prefer the Node crawler (`pnpm build:site-index`) — same stack, same output, one fewer runtime.
+
+### The JSON contract — build your own indexer
+
+The widget reads only `data.chunks` from `site-index.json`. **Any** tool that emits this shape works —
+Node, Python, or your own script (e.g. run from inside your own codebase at build time):
+
+```json
+{
+  "chunks": [
+    {
+      "anchor": "getting-started",
+      "title": "Getting Started",
+      "url": "https://yoursite.example/docs/#getting-started",
+      "text": "Install the package, then add the script tag…"
+    }
+  ]
+}
+```
+
+- `text` **(required)** — what the model grounds on.
+- `anchor` + `url` *(optional)* — enable "Related sections" links that jump the visitor to the section.
+- **No vectors needed** — the widget embeds every chunk at runtime with its own `bge-small-en-v1.5` model
+  and caches by content hash.
+
+> The bundled crawlers also write `generatedAt`, `startUrl`, `pages`, and `chunkCount` for your own
+> debugging, but the widget only consumes `chunks`.
 
 ---
 

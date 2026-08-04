@@ -43,3 +43,6 @@ public/models
 
 # Internal spike results
 test-files/spike/
+
+# tools
+tools/__pycache__
