@@ -66,6 +66,11 @@ export function installHostNavWatcher({ onNavigate, debounceMs = DEFAULT_DEBOUNC
   parentWin.addEventListener("popstate", fire);
   parentWin.addEventListener("hashchange", fire);
   // MutationObserver from the PARENT realm, observing the parent body.
+  // TRADE-OFF: observes the full body subtree, so the observer callback fires on
+  // every DOM mutation (ads, lazy images, dynamic widgets). The callback is cheap
+  // (just clears/sets a debounce timer), so the main cost is the observer overhead
+  // itself — acceptable for v1. Future optimization: disconnect when the iframe is
+  // hidden or idle, or observe a more targeted subtree.
   const Observer = parentWin.MutationObserver || window.MutationObserver;
   const observer = Observer ? new Observer(fire) : null;
   if (observer) {

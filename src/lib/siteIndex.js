@@ -10,6 +10,9 @@
 // cross-origin. embed.ts is the only host-context code.
 
 let staticIndexPromise = null;
+let staticIndexFetchedAt = 0;
+// Re-fetch after 30 minutes so host redeploys of site-index.json are picked up.
+const CACHE_TTL_MS = 30 * 60 * 1000;
 
 /**
  * Resolves which site-index.json to load. Priority:
@@ -21,16 +24,17 @@ function resolveIndexUrl(explicitUrl) {
 }
 
 /**
- * Fetches site-index.json once per session and caches the promise. A missing
- * file or fetch failure → [] (the host just hasn't run the phase-2 crawler).
+ * Fetches site-index.json and caches the promise with a TTL. A missing file or
+ * fetch failure → [] (the host just hasn't run the phase-2 crawler).
  */
 export async function loadStaticSiteIndex(indexUrl) {
   const url = resolveIndexUrl(indexUrl);
-  if (!staticIndexPromise) {
+  if (!staticIndexPromise || Date.now() - staticIndexFetchedAt > CACHE_TTL_MS) {
     staticIndexPromise = fetch(url)
       .then((res) => (res.ok ? res.json() : { chunks: [] }))
       .then((data) => data.chunks || [])
       .catch(() => []);
+    staticIndexFetchedAt = Date.now();
   }
   return staticIndexPromise;
 }

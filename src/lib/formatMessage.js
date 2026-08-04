@@ -26,12 +26,13 @@ export const formatMessageContent = (content) => {
   // Inline code
   formattedContent = formattedContent.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
 
-  // URLs - make them clickable
+  // URLs - make them clickable. Strip trailing punctuation that commonly
+  // follows URLs in prose (periods, commas, parens, quotes, etc.).
   const urlRegex = /(https?:\/\/[^\s]+)/g;
-  formattedContent = formattedContent.replace(
-    urlRegex,
-    (url) => `<a href="${url}" class="message-link" target="_blank" rel="noopener noreferrer">${url}</a>`
-  );
+  formattedContent = formattedContent.replace(urlRegex, (raw) => {
+    const url = raw.replace(/[.,;:!?)\]>"']+$/, "");
+    return `<a href="${url}" class="message-link" target="_blank" rel="noopener noreferrer">${raw}</a>`;
+  });
 
   return formattedContent;
 };

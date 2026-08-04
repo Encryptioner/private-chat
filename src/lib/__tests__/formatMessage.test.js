@@ -30,6 +30,18 @@ describe("formatMessageContent — XSS hardening (R6 + NFR Security)", () => {
     expect(out).toContain('href="https://example.com"');
   });
 
+  it("strips trailing punctuation from URL in href but keeps it in display", () => {
+    const out = formatMessageContent("visit https://example.com/path. for info");
+    expect(out).toContain('href="https://example.com/path"');
+    expect(out).toContain("https://example.com/path.");
+  });
+
+  it("strips trailing closing paren from URL", () => {
+    const out = formatMessageContent("see (https://example.com/page) for details");
+    expect(out).toContain('href="https://example.com/page"');
+    expect(out).toContain("https://example.com/page)");
+  });
+
   it("passes through ELLIPSIS / empty without altering render branching", () => {
     expect(formatMessageContent("...")).toBe("...");
     expect(formatMessageContent("")).toBe("");

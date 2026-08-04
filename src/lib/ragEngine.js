@@ -169,8 +169,9 @@ export function navigateToSection({ url, anchor } = {}) {
 
   if (crossOriginParent) {
     // Ask embed.ts to scroll/navigate the host (it can always reach its own DOM).
-    // ponytail: targetOrigin "*" — the iframe can't know the host origin reliably;
-    // embed.ts verifies the message source instead.
+    // ACCEPTED RISK: targetOrigin "*" is required because a cross-origin iframe
+    // cannot derive the host's origin. embed.ts guards against unintended senders
+    // by verifying event.source === iframe.contentWindow before acting on the message.
     try {
       window.parent.postMessage({ type: "private-chat:scroll-to", url, anchor }, "*");
       return;

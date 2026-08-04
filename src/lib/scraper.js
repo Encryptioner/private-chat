@@ -123,6 +123,10 @@ export function scrapeCurrentPage(rootEl) {
       } else {
         // id-less heading out in the open: assign a collision-free slug so
         // getElementById resolves and navigateToSection can scroll to it.
+        // NOTE: this mutates the host DOM (adds an id attribute). The mutation
+        // is intentional — it makes headings navigable for "Related sections"
+        // links. Host integrators should be aware that running the scraper
+        // adds ids to previously id-less heading elements.
         flush();
         currentAnchor = uniqueSlug(node.textContent, rootDoc);
         node.id = currentAnchor;
