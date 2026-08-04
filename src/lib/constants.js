@@ -87,6 +87,12 @@ export const BASE_URL = DEPLOYMENT_CONFIG.BASE_URL;
 export const CHAT_APP_URL = DEPLOYMENT_CONFIG.CHAT_APP_URL;
 export const EMBED_SCRIPT_URL = DEPLOYMENT_CONFIG.EMBED_SCRIPT_URL;
 
+// DOM IDs used by embed.ts — shared so callers (portfolio-template useAIChat)
+// can reference the same IDs without magic strings.
+export const EMBED_SCRIPT_ID = "aiChatEmbedScript";
+export const EMBED_DIV_ID = "ai-chat-embed-div";
+export const EMBED_FLOATING_ID = "ai-chat-floating-widget";
+
 // --- RAG (site-aware retrieval) tunables ---
 // Local dev serves the embedder GGUF same-origin (COEP-safe); prod streams it
 // from the HF CDN (CORS *, no COEP on GitHub Pages). Mirrors the LFM2 host

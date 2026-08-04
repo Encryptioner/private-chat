@@ -23,10 +23,11 @@ type ChatSection = { anchor?: string; title?: string; url?: string; text: string
 // where the host DOM is always same-origin to itself, so scraping works on ANY
 // site (unlike the iframe, which can't read a cross-origin parent).
 import { scrapeCurrentPage } from '../lib/scraper.js';
+import { EMBED_SCRIPT_ID, EMBED_DIV_ID, EMBED_FLOATING_ID } from '../lib/constants.js';
 
-const embedScriptId = 'aiChatEmbedScript';
-const defaultDivId = 'ai-chat-embed-div';
-const floatingWidgetId = 'ai-chat-floating-widget';
+const embedScriptId = EMBED_SCRIPT_ID;
+const defaultDivId = EMBED_DIV_ID;
+const floatingWidgetId = EMBED_FLOATING_ID;
 
 class EmbedScript {
   private embedQueryParams: URLSearchParams = new URLSearchParams();
