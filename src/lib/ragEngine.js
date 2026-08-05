@@ -58,19 +58,24 @@ export function hasIndex() {
 const BASE_INSTRUCTIONS =
   "You are a friendly assistant chatting with a visitor on this website. Use the NOTES below to answer " +
   "their question in your own words, like a real conversation — 1 to 3 short sentences, no lists, no headings. " +
+  "Answer directly — never start with a preamble like 'Based on the notes' or 'The answer is'. " +
   "Never copy the notes verbatim and never output URLs, section names, or brackets — links are shown separately. " +
   "If the notes don't cover the question, say you don't have that information about this page.";
 
 // One-shot example: tiny instruct models (270M) follow a demonstrated pattern
 // far more reliably than a prose instruction alone — this is what actually
 // stops it from reverting to copy-pasting the notes. Deliberately unrelated
-// wording/topic to the tests' fixture text so nothing collides.
+// wording/topic to the tests' fixture text so nothing collides. The trailing
+// reminder is load-bearing: without it, small models parrot this example's
+// specific answer text verbatim for unrelated real questions instead of just
+// mimicking its shape.
 const EXAMPLE_TURN =
   "\n\nExample —\n" +
   "NOTES: Support replies within 24 hours on business days.\n" +
   "Question: how fast do you reply?\n" +
   "Answer: We usually get back to you within 24 hours on business days.\n" +
-  "(That was just an example. Now answer using the real notes below.)";
+  "(That example's facts are fake and unrelated to this site — copy only its style, " +
+  "never its wording or content. Now answer using the real notes below.)";
 
 // Plain text only (no title/anchor/url) — the "Related sections" links already
 // come from `sources` in the UI, so the model is never given citation-shaped

@@ -1,4 +1,6 @@
-import { Wllama } from "@wllama/wllama/esm";
+import { Wllama, WllamaAbortError } from "@wllama/wllama/esm";
+
+export { WllamaAbortError };
 import { Template } from "@huggingface/jinja";
 
 // wllama 3.x ships a single unified wasm (2.x had separate single/multi-thread files).

@@ -4,7 +4,7 @@
  * the code to suit your needs.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CHAT_ROLE as ROLE, formatChat, getWllamaInstance, PRESET_MODELS } from "./lib/wllama";
+import { CHAT_ROLE as ROLE, formatChat, getWllamaInstance, PRESET_MODELS, WllamaAbortError } from "./lib/wllama";
 import { loadChatSessions, saveChatSessions, createNewSession, updateSession, deleteSession } from "./lib/chatStorage";
 import { trackEvent, sanitizeError, getEmbedHost } from "./lib/googleAnalytics";
 import { buildGroundedContext, getCurrentIndexVersion, initPageIndex, hasIndex } from "./lib/ragEngine.js";
@@ -34,8 +34,21 @@ const DEFAULT_MODEL_ID = Object.values(PRESET_MODELS).find((m) => m.default)?.na
 // literal text (e.g. "<end_of_turn>", "<|im_end|>", "<|eot_id|>") instead of
 // stopping cleanly — most visible on the 270M default. Strips anything shaped
 // like a template token so a leaked one never renders mid-answer.
-const STRAY_TOKEN_RE = /<\|[^|>\n]{1,32}\|>|<\/?(?:start|end)_of_turn>/gi;
+const STRAY_TOKEN_PATTERN_SRC = "<\\|[^|>\\n]{1,32}\\|>|<\\/?(?:start|end)_of_turn>";
+const STRAY_TOKEN_RE = new RegExp(STRAY_TOKEN_PATTERN_SRC, "gi");
 const stripStrayTokens = (text) => text.replace(STRAY_TOKEN_RE, "");
+// Same shape, no `g` flag — safe to call .search() repeatedly on a growing
+// string without global-flag lastIndex state leaking between calls.
+const STRAY_TOKEN_DETECT_RE = new RegExp(STRAY_TOKEN_PATTERN_SRC, "i");
+
+// Fast path for the known preset models' chat templates (Gemma, ChatML-style
+// Qwen/SmolLM2, Llama 3): passed as `stop` so generation halts natively the
+// instant the model tries to close its turn, before wasting tokens on
+// anything past it. User-uploaded local .gguf files can use a template not
+// in this list — STRAY_TOKEN_DETECT_RE + abortSignal below is the generic
+// backstop that covers those (and anything this list misses) by watching the
+// stream itself instead of hardcoding every model's markers.
+const TURN_END_STOP_SEQUENCES = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>"];
 
 const preventClickAction = (e) => e.preventDefault();
 // eslint-disable-next-line no-console
@@ -479,25 +492,16 @@ function App() {
       { role: ROLE.user, content: currentPrompt.trim(), id: messageIdGenerator.next().value },
     ]);
 
-    try {
-      // wllama 3.x: createCompletion takes a SINGLE options object (prompt inside),
-      // uses max_tokens (not nPredict), flat sampling fields, and onData (not the
-      // 2.x onNewToken). onData yields only the incremental piece, so we accumulate
-      // to feed the app's existing onNewToken(token, piece, cumulativeText) contract.
-      let cumulative = "";
-      await wllama.createCompletion({
-        prompt: formattedChat,
-        max_tokens: 1024,
-        temperature: 0.6,
-        penalty_repeat: 1.5,
-        stream: true,
-        onData: (chunk) => {
-          const piece = chunk?.choices?.[0]?.text ?? "";
-          cumulative += piece;
-          onNewToken(0, piece, cumulative);
-        },
-      });
+    const abortController = new AbortController();
+    let cumulative = "";
 
+    // Runs whether generation finished normally or was cut short by the
+    // stray-token abort below — both cases produce a final `cumulative` that
+    // needs the same blank-reply safety net and event tracking.
+    const finalizeResponse = () => {
+      if (!stripStrayTokens(cumulative).trim()) {
+        onNewToken(0, "", "Sorry, I didn't get a response there — could you try asking again?");
+      }
       trackEvent({
         name: "response_received",
         params: {
@@ -505,13 +509,52 @@ function App() {
           generation_time_ms: Date.now() - generationStartTime,
         },
       });
-
       // Race guard (grill Maj3): if a Story 5 SPA re-scrape swapped the live index
       // mid-turn, the captured sources may point at the old route — drop them.
       if (sourcesVersion !== null && getCurrentIndexVersion() !== sourcesVersion) {
         attachSources(null);
       }
+    };
+
+    try {
+      // wllama 3.x: createCompletion takes a SINGLE options object (prompt inside),
+      // uses max_tokens (not nPredict), flat sampling fields, and onData (not the
+      // 2.x onNewToken). onData yields only the incremental piece, so we accumulate
+      // to feed the app's existing onNewToken(token, piece, cumulativeText) contract.
+      await wllama.createCompletion({
+        prompt: formattedChat,
+        max_tokens: 1024,
+        temperature: 0.6,
+        penalty_repeat: 1.5,
+        stop: TURN_END_STOP_SEQUENCES,
+        stream: true,
+        abortSignal: abortController.signal,
+        onData: (chunk) => {
+          const piece = chunk?.choices?.[0]?.text ?? "";
+          cumulative += piece;
+          // Generic backstop (any model, any template): the moment a control
+          // token shows up in the stream, cut the display text there and abort
+          // — instead of letting the model ramble past its own turn boundary
+          // into more of the same, which is what previously produced replies
+          // that were 100% stray tokens (i.e. blank once stripped).
+          const cutIndex = cumulative.search(STRAY_TOKEN_DETECT_RE);
+          if (cutIndex !== -1) {
+            cumulative = cumulative.slice(0, cutIndex);
+            onNewToken(0, piece, cumulative);
+            abortController.abort();
+            return;
+          }
+          onNewToken(0, piece, cumulative);
+        },
+      });
+
+      finalizeResponse();
     } catch (err) {
+      if (err instanceof WllamaAbortError) {
+        // Intentional stop from the backstop above — not a failure.
+        finalizeResponse();
+        return;
+      }
       trackEvent({ name: "response_failed", params: { error: sanitizeError(err) } });
       trackEvent({
         name: "error_occurred",
@@ -859,13 +902,19 @@ function App() {
                       </Box>
                     );
                   })}
-                  {isLoading && loadedSize > 0 && parseFloat(loadingProgressDisplayString) < 100 && (
+                  {isLoading && (
                     <Text as="div" size="2">
-                      <b>{loadingProgressDisplayString}</b> Downloading model file {modelSizeDisplayString} to your
-                      computer. This happens only the first time you load the model.
+                      {loadedSize > 0 && parseFloat(loadingProgressDisplayString) < 100 ? (
+                        <>
+                          <b>{loadingProgressDisplayString}</b> Downloading model file {modelSizeDisplayString} to your
+                          computer. This happens only the first time you load the model.
+                        </>
+                      ) : (
+                        "Preparing model…"
+                      )}
                     </Text>
                   )}
-                  <Loader isLoading={isGenerating && generatingSessionId === currentSessionId && !isLoading} />
+                  <Loader isLoading={isLoading || (isGenerating && generatingSessionId === currentSessionId)} />
                   {isIndexing && (
                     <Text as="div" size="1" style={{ color: "var(--gray-a10)" }}>
                       Indexing this page…
@@ -874,13 +923,19 @@ function App() {
                 </ScrollArea>
               ) : (
                 <Box className="welcome-text" pb="5">
-                  {isLoading && loadedSize > 0 && parseFloat(loadingProgressDisplayString) < 100 ? (
+                  {isLoading ? (
                     <Flex direction="column" align="center" gap="4">
                       <Text size="6" align="center" asChild>
                         <h1>Please wait while the model loads...</h1>
                       </Text>
                       <Text size="3" color="gray" align="center">
-                        <b>{loadingProgressDisplayString}</b> Downloading model {modelSizeDisplayString}
+                        {loadedSize > 0 && parseFloat(loadingProgressDisplayString) < 100 ? (
+                          <>
+                            <b>{loadingProgressDisplayString}</b> Downloading model {modelSizeDisplayString}
+                          </>
+                        ) : (
+                          "Preparing model…"
+                        )}
                       </Text>
                       <Text size="2" color="gray" align="center">
                         It loads only once. It will be cached on your web server.
