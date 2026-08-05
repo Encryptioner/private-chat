@@ -1,6 +1,8 @@
-import { DocumentDuplicateIcon } from "@heroicons/react/24/outline";
-import { Box, Button, Callout, Code, Flex, Text, Tooltip } from "@radix-ui/themes";
+import { useState } from "react";
+import { CheckIcon, DocumentDuplicateIcon } from "@heroicons/react/24/outline";
+import { Box, Button, Code, Flex, Text, Tooltip } from "@radix-ui/themes";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Light } from "react-syntax-highlighter";
 import { atomOneDark as style } from "react-syntax-highlighter/dist/esm/styles/hljs";
 import js from "react-syntax-highlighter/dist/esm/languages/hljs/javascript";
@@ -22,7 +24,13 @@ import csharp from "react-syntax-highlighter/dist/esm/languages/hljs/csharp";
 
 const codeStyle = {
   ...style,
-  hljs: { ...style.hljs, fontSize: "0.8rem", lineHeight: "0.9rem", background: "transparent", width: "100%" },
+  hljs: {
+    ...style.hljs,
+    fontSize: "0.8rem",
+    lineHeight: "1.4",
+    width: "100%",
+    margin: 0,
+  },
 };
 
 Light.registerLanguage("javascript", js);
@@ -42,13 +50,62 @@ Light.registerLanguage("c", c);
 Light.registerLanguage("cpp", cpp);
 Light.registerLanguage("csharp", csharp);
 
+function CodeBlock({ language, code }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard
+      .writeText(code)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      // eslint-disable-next-line no-console
+      .catch((e) => console.error(e));
+  };
+
+  return (
+    <Box
+      width="100%"
+      maxWidth="100%"
+      my="2"
+      style={{ borderRadius: "6px", overflow: "hidden", border: "1px solid rgba(255, 255, 255, 0.08)" }}
+    >
+      <Flex justify="between" align="center" px="3" py="1" style={{ background: "#21252b", color: "#9da5b4" }}>
+        <Text size="1" weight="medium" style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          {language}
+        </Text>
+        <Tooltip content={copied ? "Copied!" : "Copy"}>
+          <Button size="1" variant="ghost" onClick={handleCopy} style={{ color: "#9da5b4" }}>
+            {copied ? <CheckIcon width="16" /> : <DocumentDuplicateIcon width="16" />}
+            {copied ? "Copied" : "Copy Code"}
+          </Button>
+        </Tooltip>
+      </Flex>
+      <Light PreTag="div" language={language} wrapLines wrapLongLines style={codeStyle}>
+        {code}
+      </Light>
+    </Box>
+  );
+}
+
 function Markdown({ children, ...markdownProps }) {
   const content = children.trim();
 
   return (
     <ReactMarkdown
       {...markdownProps}
+      remarkPlugins={[remarkGfm]}
       components={{
+        a({ children, href }) {
+          return (
+            <Text asChild>
+              <a href={href} className="message-link" target="_blank" rel="noopener noreferrer">
+                {children}
+              </a>
+            </Text>
+          );
+        },
         p({ children }) {
           return <Text as="p">{children}</Text>;
         },
@@ -95,34 +152,18 @@ function Markdown({ children, ...markdownProps }) {
           );
         },
         pre({ children }) {
-          return (
-            <Callout.Root variant="surface">
-              <Box maxWidth={"80vw"} width={{ initial: "480px", md: "576px" }} as="div">
-                <Flex justify="between">
-                  <Text>&nbsp;</Text>{" "}
-                  <Tooltip content="Copy">
-                    <Button size="1" variant="ghost">
-                      <DocumentDuplicateIcon width="16" />
-                      Copy Code
-                    </Button>
-                  </Tooltip>
-                </Flex>
-                {children}
-              </Box>
-            </Callout.Root>
-          );
+          return <>{children}</>;
         },
         code({ children, className }) {
           const match = /language-(\w+)/.exec(className || "");
           return match ? (
-            <Light PreTag="div" language={match[1]} wrapLines wrapLongLines style={codeStyle}>
-              {String(children).replace(/\n$/, "")}
-            </Light>
+            <CodeBlock language={match[1]} code={String(children).replace(/\n$/, "")} />
           ) : (
             <Code>{children}</Code>
           );
         },
-      }}>
+      }}
+    >
       {content}
     </ReactMarkdown>
   );

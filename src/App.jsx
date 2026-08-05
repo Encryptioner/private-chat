@@ -9,19 +9,7 @@ import { loadChatSessions, saveChatSessions, createNewSession, updateSession, de
 import { trackEvent, sanitizeError, getEmbedHost } from "./lib/googleAnalytics";
 import { buildGroundedContext, getCurrentIndexVersion, initPageIndex, hasIndex } from "./lib/ragEngine.js";
 import { installHostNavWatcher } from "./lib/hostNav.js";
-import { formatMessageContent } from "./lib/formatMessage.js";
-import {
-  Box,
-  Callout,
-  Container,
-  DropdownMenu,
-  Flex,
-  Link,
-  ScrollArea,
-  Text,
-  TextField,
-  Tooltip,
-} from "@radix-ui/themes";
+import { Box, Container, DropdownMenu, Flex, Link, ScrollArea, Text, Tooltip } from "@radix-ui/themes";
 import {
   ArrowRightIcon,
   DocumentDuplicateIcon,
@@ -45,9 +33,6 @@ const DEFAULT_MODEL_ID = Object.values(PRESET_MODELS).find((m) => m.default)?.na
 const preventClickAction = (e) => e.preventDefault();
 // eslint-disable-next-line no-console
 const copyToClipboard = (text) => navigator.clipboard.writeText(text).catch((e) => console.error(e));
-
-// formatMessageContent + escapeHtml live in ./lib/formatMessage.js (testable,
-// XSS-hardened — escapes model output before the code-block/URL wrappers).
 
 const messageIdGenerator = (function* () {
   let id = 0;
@@ -279,7 +264,7 @@ function App() {
 
       // Only save sessions that have messages
       const sessionsToSave = Object.fromEntries(
-        Object.entries(updatedSessions).filter(([_, session]) => session.messages.length > 0)
+        Object.entries(updatedSessions).filter(([, session]) => session.messages.length > 0)
       );
       saveChatSessions(sessionsToSave, domainParam, isEmbedded ? "session" : "local");
     }
@@ -711,7 +696,8 @@ function App() {
           marginLeft: !isMobile && isSidebarOpen ? "300px" : "0",
           transition: "margin-left 0.3s ease",
           height: isEmbedded ? "100vh" : "auto",
-        }}>
+        }}
+      >
         <Flex direction="column">
           <Flex direction="row" align="center" justify="between" asChild>
             <header>
@@ -756,14 +742,14 @@ function App() {
                   type="scroll"
                   scrollbars="vertical"
                   className={`messages-container${isEmbedded ? " embedded" : ""}`}
-                  ref={messagesContainerRef}>
+                  ref={messagesContainerRef}
+                >
                   {messages.map(({ content, role, id, sources }, index) => {
                     const isLastMessage = index === messages.length - 1;
                     const [reasoning, conclusion = " "] = content.startsWith("<think>")
                       ? content.split("</think>")
                       : ["", content];
                     const isUser = role === ROLE.user;
-                    const formattedContent = formatMessageContent(conclusion);
 
                     return (
                       <Box key={id} mb="6" className="mobile-message">
@@ -783,7 +769,8 @@ function App() {
                               color: isUser ? "white" : "var(--gray-a12)",
                               flexShrink: 0,
                               marginTop: "2px",
-                            }}>
+                            }}
+                          >
                             {isUser ? "U" : "AI"}
                           </Box>
 
@@ -802,7 +789,8 @@ function App() {
                                 position: "relative",
                                 maxWidth: "100%",
                                 overflow: "hidden",
-                              }}>
+                              }}
+                            >
                               {content !== ELLIPSIS ? (
                                 <div>
                                   {reasoning && (
@@ -817,23 +805,12 @@ function App() {
                                         background: "var(--gray-a3)",
                                         borderRadius: "4px",
                                         borderLeft: "3px solid var(--gray-a6)",
-                                      }}>
+                                      }}
+                                    >
                                       <strong>Reasoning:</strong> {reasoning.split("<think>")[1] || ""}
                                     </Text>
                                   )}
-                                  {formattedContent === conclusion ? (
-                                    <Markdown>{conclusion}</Markdown>
-                                  ) : (
-                                    <div
-                                      dangerouslySetInnerHTML={{ __html: formattedContent }}
-                                      style={{
-                                        lineHeight: "1.6",
-                                        wordBreak: "break-word",
-                                        overflowWrap: "break-word",
-                                        maxWidth: "100%",
-                                      }}
-                                    />
-                                  )}
+                                  <Markdown>{conclusion}</Markdown>
                                 </div>
                               ) : (
                                 <div style={{ color: "var(--gray-a10)" }}>{ELLIPSIS}</div>
@@ -850,7 +827,8 @@ function App() {
                                     tooltip="Read aloud"
                                     onClick={() => handleReadAloudClick(content)}
                                     variant="soft"
-                                    color="gray">
+                                    color="gray"
+                                  >
                                     {isReadingAloud ? <StopCircleIcon width="14" /> : <SpeakerWaveIcon width="14" />}
                                   </IconButton>
                                   <IconButton
@@ -858,7 +836,8 @@ function App() {
                                     tooltip="Copy to clipboard"
                                     onClick={() => copyToClipboard(content)}
                                     variant="soft"
-                                    color="gray">
+                                    color="gray"
+                                  >
                                     <DocumentDuplicateIcon width="14" />
                                   </IconButton>
                                 </Flex>
@@ -933,7 +912,8 @@ function App() {
                   if (!e.currentTarget.contains(e.relatedTarget)) {
                     e.currentTarget.style.borderColor = "var(--gray-a6)";
                   }
-                }}>
+                }}
+              >
                 <Box style={{ flex: 1, position: "relative" }}>
                   <textarea
                     value={prompt}
@@ -975,21 +955,6 @@ function App() {
                       }
                     }}
                   />
-                  <Text
-                    size="1"
-                    style={{
-                      position: "absolute",
-                      bottom: "-22px",
-                      right: "0px",
-                      color: prompt.length > 3500 ? "var(--red-9)" : "var(--gray-a11)",
-                      background: "var(--color-background)",
-                      padding: "2px 6px",
-                      borderRadius: "4px",
-                      fontSize: "11px",
-                      fontWeight: prompt.length > 3500 ? "600" : "normal",
-                    }}>
-                    {prompt.length}/4096
-                  </Text>
                 </Box>
                 <Flex gap="2" align="center" style={{ paddingBottom: "4px" }}>
                   {speechRecognition && (
@@ -999,7 +964,8 @@ function App() {
                       color={isRecording ? "red" : "gray"}
                       title={isRecording ? "Stop recording" : "Voice input"}
                       onClick={handleSpeechToText}
-                      disabled={isBusy && !isRecording}>
+                      disabled={isBusy && !isRecording}
+                    >
                       <MicrophoneIcon
                         height="16"
                         width="16"
@@ -1019,11 +985,24 @@ function App() {
                     style={{
                       backgroundColor: shouldDisableSubmit ? "var(--gray-a6)" : "var(--accent-9)",
                       color: "white",
-                    }}>
+                    }}
+                  >
                     <ArrowRightIcon height="16" width="16" />
                   </IconButton>
                 </Flex>
               </Box>
+              <Text
+                as="div"
+                size="1"
+                align="right"
+                mt="1"
+                style={{
+                  color: prompt.length > 3500 ? "var(--red-9)" : "var(--gray-a11)",
+                  fontWeight: prompt.length > 3500 ? "600" : "normal",
+                }}
+              >
+                {prompt.length}/4096
+              </Text>
             </Box>
             {!isEmbedded && (
               <Box pt="2" pb="4">

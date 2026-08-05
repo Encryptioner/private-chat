@@ -8,7 +8,7 @@ const serveStaticFiles = () => ({
   name: "serve-static-files",
   configureServer(server) {
     // Serve embed.js from dist directory
-    server.middlewares.use("/embed.js", (req, res, next) => {
+    server.middlewares.use("/embed.js", (req, res) => {
       const embedPath = path.resolve("dist/embed.js");
       if (fs.existsSync(embedPath)) {
         res.setHeader("Content-Type", "application/javascript");
@@ -21,7 +21,7 @@ const serveStaticFiles = () => ({
     });
 
     // Serve service worker with correct MIME type
-    server.middlewares.use("/sw.js", (req, res, next) => {
+    server.middlewares.use("/sw.js", (req, res) => {
       const swPath = path.resolve("public/sw.js");
       if (fs.existsSync(swPath)) {
         res.setHeader("Content-Type", "application/javascript");
@@ -36,9 +36,8 @@ const serveStaticFiles = () => ({
 });
 
 // https://vitejs.dev/config/
-export default defineConfig(({ command, mode }) => {
+export default defineConfig(({ command }) => {
   const isProduction = command === "build";
-  const isDevelopment = command === "serve";
 
   // Deployment configuration - easily switch between GitHub Pages and standalone domain
   const DEPLOYMENT_TYPE = process.env.DEPLOYMENT_TYPE || "github-pages"; // or "standalone"

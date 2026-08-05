@@ -77,7 +77,8 @@ function ChatHistorySidebar({
           transform: !isOpen ? "translateX(-100%)" : "translateX(0)",
           transition: "transform 0.3s ease",
         }}
-        p="4">
+        p="4"
+      >
         <Text size="4" weight="bold" mb="3" asChild>
           <h2>Chat History</h2>
         </Text>
@@ -103,7 +104,8 @@ function ChatHistorySidebar({
                 onMouseLeave={(e) =>
                   (e.currentTarget.style.backgroundColor =
                     session.id === currentSessionId ? "var(--color-accent-3)" : "transparent")
-                }>
+                }
+              >
                 {editingSessionId === session.id ? (
                   <Flex direction="column" gap="2">
                     <input
@@ -135,7 +137,8 @@ function ChatHistorySidebar({
                           onClick={(e) => {
                             e.stopPropagation();
                             handleEditStart(session);
-                          }}>
+                          }}
+                        >
                           <PencilSquareIcon width="12" height="12" />
                         </IconButton>
                         <IconButton
@@ -145,7 +148,8 @@ function ChatHistorySidebar({
                           onClick={(e) => {
                             e.stopPropagation();
                             onSessionDelete(session.id);
-                          }}>
+                          }}
+                        >
                           <TrashIcon width="12" height="12" />
                         </IconButton>
                       </Flex>

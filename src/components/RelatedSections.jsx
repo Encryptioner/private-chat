@@ -42,6 +42,7 @@ function RelatedSections({ sources = [] }) {
               aria-label={opensNewTab ? `${s.title} (opens in a new tab)` : `Go to section: ${s.title}`}
               size="2"
               highContrast
+              className="related-section-link"
             >
               <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
                 {s.title}

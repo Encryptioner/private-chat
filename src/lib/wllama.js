@@ -64,7 +64,7 @@ export const PRESET_MODELS = Object.fromEntries(
 export const formatChat = async (wllamaInstance, messages) => {
   // Check if wllamaInstance is valid
   if (!wllamaInstance) {
-    console.warn("formatChat called with null/undefined wllamaInstance, using fallback");
+    console.debug("formatChat called with null/undefined wllamaInstance, using fallback");
     const template = new Template(CHAT_TEMPLATE);
     return template.render({
       messages,
@@ -76,7 +76,7 @@ export const formatChat = async (wllamaInstance, messages) => {
 
   // Check if required methods exist
   if (typeof wllamaInstance.getChatTemplate !== "function") {
-    console.warn("formatChat: getChatTemplate method not found, using fallback");
+    console.debug("formatChat: getChatTemplate method not found, using fallback");
     const template = new Template(CHAT_TEMPLATE);
     return template.render({
       messages,
@@ -103,9 +103,9 @@ export const formatChat = async (wllamaInstance, messages) => {
       add_generation_prompt: true,
     });
   } catch (error) {
-    console.error("formatChat error:", error);
+    console.debug("formatChat error:", error);
     // Fallback: use default template if instance methods fail
-    console.log("Using fallback template rendering due to error");
+    console.debug("Using fallback template rendering due to error");
     const template = new Template(CHAT_TEMPLATE);
     return template.render({
       messages,
@@ -135,7 +135,7 @@ class WllamaWrapper {
 
     // If same model is already loaded, skip
     if (this.isModelLoaded && this.currentModelUrl === "local") {
-      console.log("Model already loaded, skipping...");
+      console.debug("Model already loaded, skipping...");
       return;
     }
 
@@ -150,7 +150,7 @@ class WllamaWrapper {
         this.currentModelUrl = "local";
       } catch (error) {
         if (error.message.includes("already initialized") || error.message.includes("Module is already initialized")) {
-          console.log("Module already initialized, assuming model is loaded");
+          console.debug("Module already initialized, assuming model is loaded");
           this.isModelLoaded = true;
           this.currentModelUrl = "local";
           return; // Return early to avoid throwing
@@ -173,7 +173,7 @@ class WllamaWrapper {
 
     // If same model is already loaded, skip
     if (this.isModelLoaded && this.currentModelUrl === url) {
-      console.log("Model already loaded, skipping...");
+      console.debug("Model already loaded, skipping...");
       return;
     }
 
@@ -188,7 +188,7 @@ class WllamaWrapper {
         this.currentModelUrl = url;
       } catch (error) {
         if (error.message.includes("already initialized") || error.message.includes("Module is already initialized")) {
-          console.log("Module already initialized, assuming model is loaded");
+          console.debug("Module already initialized, assuming model is loaded");
           this.isModelLoaded = true;
           this.currentModelUrl = url;
           return; // Return early to avoid throwing
@@ -212,7 +212,7 @@ class WllamaWrapper {
       try {
         await this.wllama.exit();
       } catch (error) {
-        console.warn("Error during exit, ignoring:", error.message);
+        console.debug("Error during exit, ignoring:", error.message);
       }
       this.isModelLoaded = false;
       this.currentModelUrl = null;
@@ -254,7 +254,7 @@ export const getWllamaInstance = () => {
     } catch (error) {
       // If module is already initialized, try to find the existing instance
       if (error.message.includes("already initialized")) {
-        console.log("WebAssembly module already initialized, attempting to reuse existing instance");
+        console.debug("WebAssembly module already initialized, attempting to reuse existing instance");
 
         // Try to find existing Wllama instance from global scope or parent window
         let existingWllama = null;
@@ -270,17 +270,17 @@ export const getWllamaInstance = () => {
             if (window.parent.wllamaGlobalInstance && window.parent.wllamaGlobalInstance.wllama) {
               existingWllama = window.parent.wllamaGlobalInstance.wllama;
             }
-          } catch (e) {
+          } catch {
             // Cross-origin access blocked, ignore
           }
         }
 
         if (existingWllama) {
-          console.log("Found existing Wllama instance, sharing it");
+          console.debug("Found existing Wllama instance, sharing it");
           rawWllama = existingWllama;
         } else {
           // Fallback: create a mock object that matches Wllama's interface
-          console.log("No existing instance found, creating mock for compatibility");
+          console.debug("No existing instance found, creating mock for compatibility");
           rawWllama = {
             loadModel: async () => {
               throw new Error("Module is already initialized");

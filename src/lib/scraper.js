@@ -74,7 +74,10 @@ export function scrapeCurrentPage(rootEl) {
       while (outline.length && outline[outline.length - 1].level >= level) outline.pop();
       outline.push({ level, text });
     }
-    return outline.map((o) => o.text).join(" — ").slice(0, 80);
+    return outline
+      .map((o) => o.text)
+      .join(" — ")
+      .slice(0, 80);
   };
 
   const flush = () => {
