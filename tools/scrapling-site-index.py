@@ -15,9 +15,11 @@ page (via Scrapling's `page_action`) and calls scrapeCurrentPage(document.body)
 the identical contract {chunks:[{anchor,title,url,text}]}; the widget embeds
 those chunks at runtime with its own bge model (no vectors here).
 
-Install (one-time):
+Requires Python 3.10+. Install (one-time; see docs/SITE-INTEGRATION.md for the full guide):
   pip install "scrapling[fetchers]"
-  scrapling install                 # downloads Chromium
+  scrapling install                 # downloads Chromium (DynamicFetcher)
+  # only if using --stealth (StealthyFetcher drives Camoufox):
+  pip install camoufox && playwright install-deps firefox && camoufox fetch
 
 Usage:
   python tools/scrapling-site-index.py --url https://example.github.io/site/ \\

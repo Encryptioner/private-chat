@@ -250,11 +250,48 @@ A second, **equivalent** crawler exists for site owners who prefer Python, need 
 **identical** `site-index.json` — it injects the same `src/lib/scraper.js` into each rendered page, so
 chunk quality matches the Node crawler and the live widget.
 
-```bash
-# one-time
-pip install "scrapling[fetchers]"
-scrapling install                 # downloads Chromium
+#### Installation
 
+Requires **Python 3.10+**. A virtualenv is recommended — Scrapling pulls Playwright plus browser
+binaries you don't want in your system Python.
+
+```bash
+# 1. isolate (optional but recommended)
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+
+# 2. install Scrapling WITH fetchers
+#    (bare `pip install scrapling` is parser-only → ModuleNotFoundError on import)
+pip install "scrapling[fetchers]"
+
+# 3. download the browser DynamicFetcher drives (Chromium)
+scrapling install
+```
+
+<details>
+<summary><strong>Using <code>--stealth</code>?</strong> (StealthyFetcher / Camoufox)</summary>
+
+`StealthyFetcher` drives [Camoufox](https://github.com/daijro/camoufox) (a hardened Firefox build),
+which needs one extra setup step after the install above:
+
+```bash
+pip install camoufox
+playwright install-deps firefox    # OS-level libs for headless Firefox
+camoufox fetch                     # downloads the Camoufox binary
+```
+
+</details>
+
+Verify the install:
+
+```bash
+python -c "from scrapling.fetchers import DynamicFetcher; print('ok')"
+# prints: ok     → ready. If it raises ModuleNotFoundError, you installed bare `scrapling` — redo step 2.
+```
+
+#### Usage
+
+```bash
 # crawl — works against a local/dev URL OR a deployed one
 python tools/scrapling-site-index.py \
   --url http://localhost:5173/ [--depth 1] [--pages /,/about] \
