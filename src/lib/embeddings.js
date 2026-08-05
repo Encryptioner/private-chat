@@ -173,10 +173,20 @@ export async function retrieveRelevant(question, vectors, topK = RAG.TOP_K, { mi
     // e.g. a command shown in both a summary and a full guide) — feeding the
     // model 3 copies of one line is what made it start echoing instead of
     // conversing. Containment check catches truncated repeats, not just exact.
+    // Same-anchor check catches the OTHER duplicate shape: one long section
+    // split into several chunks by chunkSections, where two chunks of the
+    // SAME section can both clear the score threshold with genuinely
+    // different text — same link, shown twice in "Related sections".
+    // `scored` is sorted by score desc, so the first chunk kept per anchor
+    // is always its highest-scoring one.
     const unique = [];
     for (const item of scored) {
       const isDup = unique.some(
-        (u) => u.text === item.text || u.text.includes(item.text) || item.text.includes(u.text)
+        (u) =>
+          (item.anchor && u.anchor === item.anchor) ||
+          u.text === item.text ||
+          u.text.includes(item.text) ||
+          item.text.includes(u.text)
       );
       if (!isDup) unique.push(item);
       if (unique.length >= topK) break;

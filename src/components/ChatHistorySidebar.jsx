@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Box, Flex, ScrollArea, Text, IconButton } from "@radix-ui/themes";
+import { useRef, useState } from "react";
+import { AlertDialog, Box, Button, Flex, ScrollArea, Text, IconButton } from "@radix-ui/themes";
 import { TrashIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
 import PropTypes from "prop-types";
 
@@ -15,6 +15,11 @@ function ChatHistorySidebar({
 }) {
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
+  // Escape unmounts the input, which some browsers follow with a native blur
+  // on the about-to-be-removed element — without this guard that blur would
+  // fire onBlur={handleEditSave} right after cancel and silently re-save the
+  // abandoned edit.
+  const cancelledRef = useRef(false);
 
   const handleEditStart = (session) => {
     setEditingSessionId(session.id);
@@ -22,6 +27,10 @@ function ChatHistorySidebar({
   };
 
   const handleEditSave = () => {
+    if (cancelledRef.current) {
+      cancelledRef.current = false;
+      return;
+    }
     if (editTitle.trim()) {
       onSessionRename(editingSessionId, editTitle.trim());
     }
@@ -30,6 +39,7 @@ function ChatHistorySidebar({
   };
 
   const handleEditCancel = () => {
+    cancelledRef.current = true;
     setEditingSessionId(null);
     setEditTitle("");
   };
@@ -142,17 +152,31 @@ function ChatHistorySidebar({
                         >
                           <PencilSquareIcon width="12" height="12" />
                         </IconButton>
-                        <IconButton
-                          size="1"
-                          variant="ghost"
-                          color="red"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSessionDelete(session.id);
-                          }}
-                        >
-                          <TrashIcon width="12" height="12" />
-                        </IconButton>
+                        <AlertDialog.Root>
+                          <AlertDialog.Trigger>
+                            <IconButton size="1" variant="ghost" color="red" onClick={(e) => e.stopPropagation()}>
+                              <TrashIcon width="12" height="12" />
+                            </IconButton>
+                          </AlertDialog.Trigger>
+                          <AlertDialog.Content maxWidth="360px" onClick={(e) => e.stopPropagation()}>
+                            <AlertDialog.Title>Delete chat?</AlertDialog.Title>
+                            <AlertDialog.Description size="2">
+                              &ldquo;{session.title}&rdquo; will be permanently deleted. This can&apos;t be undone.
+                            </AlertDialog.Description>
+                            <Flex gap="3" mt="4" justify="end">
+                              <AlertDialog.Cancel>
+                                <Button variant="soft" color="gray">
+                                  Cancel
+                                </Button>
+                              </AlertDialog.Cancel>
+                              <AlertDialog.Action>
+                                <Button variant="solid" color="red" onClick={() => onSessionDelete(session.id)}>
+                                  Delete
+                                </Button>
+                              </AlertDialog.Action>
+                            </Flex>
+                          </AlertDialog.Content>
+                        </AlertDialog.Root>
                       </Flex>
                     </Flex>
                     <Flex justify="between" align="center" width="100%">

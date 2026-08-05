@@ -176,9 +176,11 @@ pnpm run build
 ## Configuration
 
 The app supports various GGUF models from Hugging Face:
-- SmolLM2-135M-Instruct (default)
-- SmolLM2-360M-Instruct  
-- Llama-3.2-1B-Instruct
+- Gemma 3 270M (default)
+- Gemma 3 1B
+- Llama 3.2 1B
+- Qwen3 0.6B
+- SmolLM2 360M
 - Custom GGUF file upload (max 2GB)
 
 Models are automatically cached in browser for offline use.

@@ -60,7 +60,7 @@ The app supports two types of models:
 1. **Preset Models**: Defined in `src/lib/wllama.js` PRESET_MODELS, downloaded from Hugging Face
 2. **Local GGUF Files**: Users can upload their own .gguf files (max 2GB in browser)
 
-Default chat model (**Gemma 3 270M**, `default: true` in `PRESET_MODELS`) is downloaded during `pnpm install` to `public/models/`. Set `SKIP_DOWNLOAD_MODEL=true` to skip automatic download.
+Default chat model (**Gemma 3 270M (278MB)**, `default: true` in `PRESET_MODELS`) is downloaded during `pnpm install` to `public/models/`. Set `SKIP_DOWNLOAD_MODEL=true` to skip automatic download.
 
 ### RAG embedder model
 

@@ -15,13 +15,16 @@ export const CHAT_ROLE = Object.freeze({
   user: "user",
 });
 
+// Names match how each model is known on HuggingFace (searchable), with actual
+// quantized .gguf download size appended — param count alone doesn't tell you
+// download cost since that depends on quantization (Q4_K_M vs Q8_0, etc).
 const models = {
-  "Gemma 3 (1B)": {
+  "Gemma 3 1B (769MB)": {
     url: "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
     license: "https://deepmind.google/models/gemma/gemma-3",
     description: "Gemma is a lightweight, family of models from Google built on Gemini technology.",
   },
-  "Llama 3.2 (1B)": {
+  "Llama 3.2 1B (770MB)": {
     url: "https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
     license: "https://raw.githubusercontent.com/meta-llama/llama-models/refs/heads/main/models/llama3_2/LICENSE",
     description: "Meta's Llama 3.2 goes small with this 1B model",
@@ -30,17 +33,17 @@ const models = {
   // (~1.08GB) exceeds the WASM linear-memory budget and never loaded in this
   // runtime (see test-files/spike/RESULT.md #3). Only dense transformer
   // architectures (Gemma/Llama/Qwen) are known to load here.
-  "Qwen 3 (0.6B)": {
+  "Qwen3 0.6B (378MB)": {
     url: "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf",
     license: "https://qwenlm.github.io/",
     description: "Qwen3 is the latest generation of large language models in Qwen series",
   },
-  "SmolLM2 (360M)": {
+  "SmolLM2 360M (258MB)": {
     url: "https://huggingface.co/unsloth/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf",
     license: "https://huggingface.co/HuggingFaceTB/SmolLM2-360M#license",
     description: "SmolLM2 is a family of compact language models by Hugging Face",
   },
-  "Gemma 3 (270M)": {
+  "Gemma 3 270M (278MB)": {
     url: "https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-Q8_0.gguf",
     license: "https://deepmind.google/models/gemma/gemma-3",
     description: "Gemma is a lightweight, family of models from Google built on Gemini technology.",

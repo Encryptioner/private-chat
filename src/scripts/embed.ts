@@ -161,6 +161,10 @@ class EmbedScript {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         el.style.outline = '2px solid var(--accent-9, #2dd4bf)';
         setTimeout(() => (el.style.outline = ''), 1500);
+        // Reflect the section in the URL, like a real anchor-link click would —
+        // pushState (not location.hash) so it doesn't ALSO trigger the browser's
+        // own instant hash-jump on top of the smooth scroll just done above.
+        history.pushState(null, '', '#' + anchor);
         return;
       }
     }

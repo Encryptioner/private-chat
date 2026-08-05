@@ -93,6 +93,7 @@ function App() {
   const externalSectionsRef = useRef(null);
   const externalModeRef = useRef(false);
   const hostNavUninstallRef = useRef(null);
+  const promptBeforeRecordingRef = useRef("");
   const [domainParam, setDomainParam] = useState(null);
   const selectedModel = localModelFiles.length
     ? { name: localModelFiles[0].name, url: "file", license: "" }
@@ -312,7 +313,11 @@ function App() {
         for (let i = event.resultIndex; i < event.results.length; i++) {
           transcript += event.results[i][0].transcript;
         }
-        setPrompt(transcript);
+        // Prepend whatever was already typed — each result event replaces the
+        // dictated portion only (interim results re-send the whole utterance
+        // so far), it must not wipe out text typed before recording started.
+        const base = promptBeforeRecordingRef.current;
+        setPrompt(base ? `${base} ${transcript}` : transcript);
       };
 
       recognition.onend = () => {
@@ -693,6 +698,7 @@ function App() {
       speechRecognition.stop();
       setIsRecording(false);
     } else {
+      promptBeforeRecordingRef.current = prompt.trim();
       setIsRecording(true);
       speechRecognition.start();
     }
@@ -762,7 +768,10 @@ function App() {
                 <Dropdown label={selectedModel.name}>
                   {Object.values(PRESET_MODELS).map(({ name, description }) => (
                     <Tooltip content={description} side="right" key={name}>
-                      <DropdownMenu.Item disabled={name === selectedModel.name} onClick={getMenuOptionHandler(name)}>
+                      <DropdownMenu.Item
+                        disabled={name === selectedModel.name || isBusy}
+                        onClick={getMenuOptionHandler(name)}
+                      >
                         {name}
                       </DropdownMenu.Item>
                     </Tooltip>
