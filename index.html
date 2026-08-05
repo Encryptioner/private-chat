@@ -10,20 +10,30 @@
   <style>
     /* ponytail: static skeleton so the widget paints instantly instead of a
        blank #root while the JS bundle downloads/parses. React's createRoot
-       render() overwrites #root's children, so this needs no removal code. */
+       render() overwrites #root's children, so this needs no removal code.
+       Light-mode only — matches the app's default theme (no dark mode support). */
     #root:empty {
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 16px;
       height: 100vh;
-      background: #fff;
+      margin: 0;
+      background: #ffffff;
+      color: #202020;
+      font: 16px/24px -apple-system, system-ui, sans-serif;
+    }
+    #root:empty::before {
+      content: "Loading chat assistant…";
+      font-size: 14px;
       color: #6b7280;
-      font: 14px system-ui, -apple-system, sans-serif;
+      font-weight: 400;
     }
     #root:empty::after {
       content: "";
-      width: 28px;
-      height: 28px;
+      width: 24px;
+      height: 24px;
       border: 3px solid #e5e7eb;
       border-top-color: #3b82f6;
       border-radius: 50%;
@@ -31,10 +41,6 @@
     }
     @keyframes root-skeleton-spin {
       to { transform: rotate(360deg); }
-    }
-    @media (prefers-color-scheme: dark) {
-      #root:empty { background: #111; color: #9ca3af; }
-      #root:empty::after { border-color: #374151; border-top-color: #3b82f6; }
     }
   </style>
   </head>
