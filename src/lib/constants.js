@@ -86,3 +86,39 @@ export const DEPLOYMENT_CONFIG = {
 export const BASE_URL = DEPLOYMENT_CONFIG.BASE_URL;
 export const CHAT_APP_URL = DEPLOYMENT_CONFIG.CHAT_APP_URL;
 export const EMBED_SCRIPT_URL = DEPLOYMENT_CONFIG.EMBED_SCRIPT_URL;
+
+// DOM IDs used by embed.ts — shared so callers (portfolio-template useAIChat)
+// can reference the same IDs without magic strings.
+export const EMBED_SCRIPT_ID = "aiChatEmbedScript";
+export const EMBED_DIV_ID = "ai-chat-embed-div";
+export const EMBED_FLOATING_ID = "ai-chat-floating-widget";
+
+// --- RAG (site-aware retrieval) tunables ---
+// Local dev serves the embedder GGUF same-origin (COEP-safe); prod streams it
+// from the HF CDN (CORS *, no COEP on GitHub Pages). Mirrors the LFM2 host
+// switch in wllama.js.
+const isLocalHost = () =>
+  typeof window !== "undefined" && ["localhost", "0.0.0.0", "127.0.0.1"].includes(window.location.hostname);
+
+export const RAG = {
+  get EMBEDDER_URL() {
+    return isLocalHost()
+      ? `${window.location.origin}/models/bge-small-en-v1.5-q8_0.gguf`
+      : "https://huggingface.co/CompendiumLabs/bge-small-en-v1.5-gguf/resolve/main/bge-small-en-v1.5-q8_0.gguf";
+  },
+  // wllama 3.x: pooling_type is the llama.cpp enum STRING (not 'mean').
+  EMBEDDER_OPTIONS: {
+    embeddings: true,
+    pooling_type: "LLAMA_POOLING_TYPE_MEAN",
+    n_ctx: 512,
+    n_batch: 512,
+    n_ubatch: 512,
+    n_threads: 1, // matches prod (GitHub Pages = single-thread)
+  },
+  MIN_SCORE: 0.25, // bge-small cosine floor; tune after real-model smoke
+  TOP_K: 4,
+  CHUNK_MAX_WORDS: 220,
+  IDB_NAME: "private-chat-rag",
+  IDB_STORE: "page-index",
+  QUERY_PREFIX: "Represent this sentence for searching relevant passages: ",
+};

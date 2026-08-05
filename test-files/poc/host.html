@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Acme — Demo Host Site</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; color: #111; }
+    section { padding: 2rem 0; border-top: 1px solid #eee; }
+    h2 { margin-top: 0; }
+    .chat-frame { position: fixed; right: 16px; bottom: 16px; width: 380px; height: 480px; border: 1px solid #ccc; background: #fff; border-radius: 8px; }
+    .hint { background: #fef9c3; padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>Acme Widgets</h1>
+  <p>This is the <b>HOST</b> page. The chat iframe (bottom-right) should scrape <b>this</b> page, not itself.</p>
+  <p class="hint">PoC: serve this dir over http (modules need http, not file://), then watch the chat panel.</p>
+
+  <section id="pricing">
+    <h2>Pricing</h2>
+    <p>Starter is $9 per month. Pro is $29 per month and includes unlimited widgets and priority support. Enterprise pricing is custom; contact sales for a quote.</p>
+  </section>
+
+  <!-- NOTE: this heading has NO id — exercises the slug-assign fix (Fix 3) -->
+  <section>
+    <h2>Frequently Asked Questions</h2>
+    <p>Yes, you can cancel anytime. Refunds are available within 14 days of payment. We accept all major credit cards and PayPal.</p>
+  </section>
+
+  <section id="contact">
+    <h2>Contact</h2>
+    <p>Email support@acme.example or call 555-0142. Our office is at 123 Main St. Response time is under 24 hours on weekdays.</p>
+  </section>
+
+  <!-- Same sandbox attrs as src/scripts/embed.ts (allow-scripts + allow-same-origin
+       keeps the iframe same-origin so window.parent.document is reachable). -->
+  <iframe class="chat-frame" src="frame.html" sandbox="allow-scripts allow-same-origin" title="chat"></iframe>
+</body>
+</html>

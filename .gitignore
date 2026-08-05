@@ -37,3 +37,12 @@ public/models
 # VS Code IDE
 .vscode/*
 !.vscode/*.example.json
+
+# Playwright MCP browser snapshots (local testing artifacts)
+.playwright-mcp/
+
+# Internal spike results
+test-files/spike/
+
+# tools
+tools/__pycache__

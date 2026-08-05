@@ -14,6 +14,7 @@ Blog post:
 - 📱 **Responsive Design**: Works across all devices and screen sizes
 - ⚡ **WebAssembly Powered**: Fast inference using Wllama
 - 🎯 **Easy Integration**: Simple embed script for websites
+- 🧠 **Site-Aware (RAG)**: When embedded, the widget scrapes the host page and answers from its own content — with clickable links that scroll to the relevant section. 100% in-browser, no backend.
 
 ## Quick Start
 
@@ -79,6 +80,39 @@ If you want the chat to load in a specific location:
 <!-- Chat loads automatically here -->
 <div id="ai-chat-embed-div"></div>
 ```
+
+### Site-Aware Mode (RAG)
+
+When embedded, the widget reads the host page and answers from its own content — with
+clickable "Related sections" links. It works on **any** site (same-origin, cross-origin,
+static, or dynamic SPA) with zero config: `embed.js` scrapes the host page and bridges the
+content to the chat iframe via `postMessage`.
+
+Set `window.PRIVATE_CHAT_CONFIG` **before** the embed script loads to customize it (all fields
+optional):
+
+```html
+<script>
+  window.PRIVATE_CHAT_CONFIG = {
+    label: "Acme Labs",              // shown in the widget greeting
+    siteIndexUrl: "/site-index.json", // optional pre-built cross-page index
+    getSections: null                 // optional custom scraper (see docs)
+  };
+</script>
+<script id="aiChatEmbedScript" defer src="https://encryptioner.github.io/private-chat/embed.js"></script>
+```
+
+- **No config** → the widget live-scrapes the current page and grounds answers in it.
+- `getSections` → supply your own scraper (CMS, JSON-LD, an API, a content region). Runs in
+  your page's context; return `{anchor?, title?, url?, text}` per section.
+- Dynamic/SPA sites re-scrape automatically on client-side navigation.
+- The widget answers **only** from retrieved content; if a question isn't covered, it says so.
+
+📖 **Full integration guide:** [`docs/SITE-INTEGRATION.md`](docs/SITE-INTEGRATION.md) — the
+three running modes, the custom-scraper contract with examples, SPA behavior, link handling,
+troubleshooting, and privacy/security notes. **Writing your own scraper?**
+[`docs/CUSTOM-SCRAPER-GUIDE.md`](docs/CUSTOM-SCRAPER-GUIDE.md) — step-by-step cookbook with
+patterns + a local test tool.
 
 ### Advanced Integration
 
@@ -155,3 +189,12 @@ Models are automatically cached in browser for offline use.
 - [Llama 3.2 - Meta](https://www.llama.com/)
 - [Daniel Chifamba](https://dev.to/dchif/run-your-offline-ai-chat-assistant-pure-browser-zero-backend-1e48)
 
+
+
+---
+
+## Support
+
+If you find my work useful, consider supporting it:
+
+[![SupportKori](https://img.shields.io/badge/SupportKori-☕-FFDD00?style=flat-square)](https://www.supportkori.com/mirmursalinankur)

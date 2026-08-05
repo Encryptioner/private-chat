@@ -1,8 +1,8 @@
 import { Wllama } from "@wllama/wllama/esm";
 import { Template } from "@huggingface/jinja";
 
-import wllamaSingle from "@wllama/wllama/esm/single-thread/wllama.wasm?url";
-import wllamaMulti from "@wllama/wllama/esm/multi-thread/wllama.wasm?url";
+// wllama 3.x ships a single unified wasm (2.x had separate single/multi-thread files).
+import wllamaWasm from "@wllama/wllama/esm/wasm/wllama.wasm?url";
 
 const CHAT_TEMPLATE =
   "{% for message in messages %}{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}{% endfor %}{% if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{% endif %}";
@@ -90,25 +90,11 @@ export const formatChat = async (wllamaInstance, messages) => {
     const chatTemplate = wllamaInstance.getChatTemplate();
     const template = new Template(chatTemplate ?? CHAT_TEMPLATE);
 
-    let bosToken = "";
-    let eosToken = "";
-
-    // Safely get BOS/EOS tokens
-    try {
-      if (typeof wllamaInstance.getBOS === "function" && typeof wllamaInstance.detokenize === "function") {
-        bosToken = await wllamaInstance.detokenize([wllamaInstance.getBOS()]);
-      }
-    } catch (e) {
-      console.warn("Failed to get BOS token:", e.message);
-    }
-
-    try {
-      if (typeof wllamaInstance.getEOS === "function" && typeof wllamaInstance.detokenize === "function") {
-        eosToken = await wllamaInstance.detokenize([wllamaInstance.getEOS()]);
-      }
-    } catch (e) {
-      console.warn("Failed to get EOS token:", e.message);
-    }
+    // wllama 3.x removed detokenize(); BOS/EOS aren't obtainable as strings via
+    // the low-level API. Chat templates carry their own special tokens (Gemma uses
+    // <start_of_turn>/<end_of_turn>), so rendering with empty bos/eos is correct.
+    const bosToken = "";
+    const eosToken = "";
 
     return template.render({
       messages,
@@ -264,13 +250,7 @@ export const getWllamaInstance = () => {
     let rawWllama;
 
     try {
-      rawWllama = new Wllama(
-        {
-          "single-thread/wllama.wasm": wllamaSingle,
-          "multi-thread/wllama.wasm": wllamaMulti,
-        },
-        { suppressNativeLog: true }
-      );
+      rawWllama = new Wllama({ default: wllamaWasm }, { suppressNativeLog: true });
     } catch (error) {
       // If module is already initialized, try to find the existing instance
       if (error.message.includes("already initialized")) {
