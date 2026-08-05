@@ -61,12 +61,23 @@ const BASE_INSTRUCTIONS =
   "Never copy the notes verbatim and never output URLs, section names, or brackets — links are shown separately. " +
   "If the notes don't cover the question, say you don't have that information about this page.";
 
+// One-shot example: tiny instruct models (270M) follow a demonstrated pattern
+// far more reliably than a prose instruction alone — this is what actually
+// stops it from reverting to copy-pasting the notes. Deliberately unrelated
+// wording/topic to the tests' fixture text so nothing collides.
+const EXAMPLE_TURN =
+  "\n\nExample —\n" +
+  "NOTES: Support replies within 24 hours on business days.\n" +
+  "Question: how fast do you reply?\n" +
+  "Answer: We usually get back to you within 24 hours on business days.\n" +
+  "(That was just an example. Now answer using the real notes below.)";
+
 // Plain text only (no title/anchor/url) — the "Related sections" links already
 // come from `sources` in the UI, so the model is never given citation-shaped
 // text to echo back verbatim (that was the #1 cause of copy-paste answers).
 function buildSystemMessage(relevantChunks) {
   const notes = relevantChunks.map((c) => c.text).join("\n---\n");
-  return `${BASE_INSTRUCTIONS}\n\nNOTES:\n${notes}`;
+  return `${BASE_INSTRUCTIONS}${EXAMPLE_TURN}\n\nNOTES:\n${notes}`;
 }
 
 /**
