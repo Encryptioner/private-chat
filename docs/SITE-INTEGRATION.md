@@ -70,6 +70,8 @@ Set this **before** the script tag. All fields are optional.
   window.PRIVATE_CHAT_CONFIG = {
     label: "Acme Labs",            // shown in the widget greeting
     siteIndexUrl: "site-index.json", // optional — override where the cross-page index lives
+    persona: "You are Aria, the friendly assistant for Acme Labs.", // optional — customize the assistant's voice
+    modelUrl: null,                // optional — load your own GGUF instead of the built-in default
     getSections: null              // optional custom scraper (see below)
   };
 </script>
@@ -81,9 +83,19 @@ Set this **before** the script tag. All fields are optional.
 |-------|------|---------|
 | `label` | `string` | Replaces the "Hi, how may I help you?" greeting (e.g. `"How can Acme Labs help you?"`). |
 | `siteIndexUrl` | `string` | Path or URL to a pre-built static index (`site-index.json`) for cross-page awareness. **Default (omit this field): `site-index.json` right next to the host page.** Missing file = ignored. Resolved against the **host page's own location** (embed.ts does this before forwarding it to the iframe) — see [the shared-origin gotcha](#gotcha-siteindexurl-on-a-shared-origin) below before setting this to anything with a leading `/`. Generate the file with the bundled crawler (Node or Python) — see [Cross-page awareness](#cross-page-awareness-via-site-indexjson) below. |
+| `persona` | `string` | Replaces just the assistant's opening identity line (default: *"You are a friendly assistant chatting with a visitor on this website."*). The rest of the grounding instructions (answer length, no verbatim copying, etc.) always apply — this only changes voice/tone, not behavior. Keep it to one sentence — see the note below. |
+| `modelUrl` | `string` | URL to a GGUF file to load instead of the built-in default model — any public preset, or one you trained/fine-tuned yourself. Must be hosted with CORS enabled (HF Spaces, R2, GitHub raw, S3 with a CORS policy, etc.). See [`docs/CUSTOM-MODEL-TRAINING.md`](CUSTOM-MODEL-TRAINING.md). |
 | `getSections` | `function` | Your own scraper. See below. |
 
 **No config** → the widget live-scrapes the current page and grounds answers in it, and (as of the default above) also checks for a `site-index.json` next to the current page automatically.
+
+> **Keep `persona` and `modelUrl` short.** Both get forwarded as query params on the iframe's
+> URL, which is a real GET request through the host's CDN — most CDNs/servers cap request-line
+> length (commonly ~8–16KB). Nothing in normal use gets remotely close to that (a one-sentence
+> `persona` and a typical model URL total well under 1KB), but a multi-paragraph `persona` or a
+> `modelUrl` pointing at a long signed/presigned URL (S3, R2 auth query strings routinely run
+> 500–1500+ chars) eats into that budget fast. `embed.ts` logs a console warning if the built
+> iframe URL exceeds 4000 characters as an early signal.
 
 ---
 

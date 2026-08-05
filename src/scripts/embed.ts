@@ -10,6 +10,8 @@ declare global {
     PRIVATE_CHAT_CONFIG?: {
       label?: string;
       siteIndexUrl?: string;
+      persona?: string;
+      modelUrl?: string;
       getSections?: (rootDoc: Document) => ChatSection[] | Promise<ChatSection[]>;
     };
   }
@@ -95,6 +97,8 @@ class EmbedScript {
     // embed.ts is the ONLY host-context code; the iframe reads these from its own URL.
     const config = window.PRIVATE_CHAT_CONFIG;
     if (config?.label) iframeUrl.searchParams.set('label', config.label);
+    if (config?.persona) iframeUrl.searchParams.set('persona', config.persona);
+    if (config?.modelUrl) iframeUrl.searchParams.set('modelUrl', config.modelUrl);
 
     // siteIndexUrl means "site-index.json next to the HOST page" — but the iframe
     // itself is loaded from private-chat's own path (e.g. /private-chat/), a
@@ -114,7 +118,19 @@ class EmbedScript {
       console.warn('[private-chat] Failed to resolve siteIndexUrl:', error);
     }
 
-    iframe.src = iframeUrl.toString();
+    // ponytail: no config field is length-capped (persona/modelUrl are free text/URLs a site
+    // owner controls) and this URL is a real GET request through GitHub Pages' CDN, which — like
+    // most servers/CDNs — caps request-line length (commonly ~8-16KB). 4000 chars is nowhere near
+    // that, just an early, loud signal before someone's oversized persona/signed-modelUrl gets
+    // anywhere near it. Raise the threshold if it ever fires on a legitimate config.
+    const finalUrl = iframeUrl.toString();
+    if (finalUrl.length > 4000) {
+      console.warn(
+        `[private-chat] iframe URL is unusually long (${finalUrl.length} chars) — check persona/modelUrl ` +
+          'for an overly long value; very long URLs can be rejected by some hosts/CDNs.'
+      );
+    }
+    iframe.src = finalUrl;
     iframe.style.width = '100%';
     iframe.style.height = '100%';
     iframe.style.border = 'none';

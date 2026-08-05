@@ -112,7 +112,10 @@ optional):
 three running modes, the custom-scraper contract with examples, SPA behavior, link handling,
 troubleshooting, and privacy/security notes. **Writing your own scraper?**
 [`docs/CUSTOM-SCRAPER-GUIDE.md`](docs/CUSTOM-SCRAPER-GUIDE.md) — step-by-step cookbook with
-patterns + a local test tool.
+patterns + a local test tool. **Want to load a custom/self-trained model instead of just grounding/persona
+config?** [`docs/CUSTOM-MODEL-TRAINING.md`](docs/CUSTOM-MODEL-TRAINING.md) — the planned
+`modelUrl` loading support, an optional CPU LoRA training recipe, and why training usually
+isn't needed.
 
 ### Advanced Integration
 

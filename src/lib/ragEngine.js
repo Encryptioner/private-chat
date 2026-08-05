@@ -55,8 +55,14 @@ export function hasIndex() {
   return !!currentIndex && currentIndex.length > 0;
 }
 
-const BASE_INSTRUCTIONS =
-  "You are a friendly assistant chatting with a visitor on this website. Use the NOTES below to answer " +
+// Opening identity line only — a site owner's `persona` override (PRIVATE_CHAT_CONFIG.persona,
+// forwarded by embed.ts) replaces just this sentence. FORMAT_RULES below is deliberately NOT
+// overridable: it's the hard-won small-model tuning (grill Maj2) that keeps grounded answers
+// short and non-hallucinatory — letting site owners replace it risks silently breaking that.
+const DEFAULT_PERSONA = "You are a friendly assistant chatting with a visitor on this website.";
+
+const FORMAT_RULES =
+  "Use the NOTES below to answer " +
   "their question in your own words, like a real conversation — 1 to 3 short sentences, no lists, no headings. " +
   "Answer directly — never start with a preamble like 'Based on the notes' or 'The answer is'. " +
   "Never copy the notes verbatim and never output URLs, section names, or brackets — links are shown separately. " +
@@ -80,9 +86,10 @@ const EXAMPLE_TURN =
 // Plain text only (no title/anchor/url) — the "Related sections" links already
 // come from `sources` in the UI, so the model is never given citation-shaped
 // text to echo back verbatim (that was the #1 cause of copy-paste answers).
-function buildSystemMessage(relevantChunks) {
+function buildSystemMessage(relevantChunks, persona) {
   const notes = relevantChunks.map((c) => c.text).join("\n---\n");
-  return `${BASE_INSTRUCTIONS}${EXAMPLE_TURN}\n\nNOTES:\n${notes}`;
+  const opening = persona?.trim() || DEFAULT_PERSONA;
+  return `${opening} ${FORMAT_RULES}${EXAMPLE_TURN}\n\nNOTES:\n${notes}`;
 }
 
 /**
@@ -96,11 +103,13 @@ function buildSystemMessage(relevantChunks) {
  * @param {string} userQuestion
  * @param {Array} [externalSections] host-side sections from embed.ts postMessage
  * @param {string} [siteIndexUrl] optional static-index URL (forwarded by embed.ts)
+ * @param {string} [persona] optional opening-line override (PRIVATE_CHAT_CONFIG.persona,
+ *   forwarded by embed.ts) — replaces DEFAULT_PERSONA only; FORMAT_RULES always apply.
  * @returns {Promise<{systemContent:string, sources:Array, version:string}>}
  *   systemContent=null when no chunks clear threshold → caller keeps its generic
  *   system message (context-less chat, no links).
  */
-export async function buildGroundedContext(userQuestion, externalSections, siteIndexUrl) {
+export async function buildGroundedContext(userQuestion, externalSections, siteIndexUrl, persona) {
   // (Re)build when there's no index, OR when the index is empty but host sections
   // have since arrived (race: first question fired before embed.ts posted sections
   // → empty cross-origin scrape → now sections are available, so rebuild). Does NOT
@@ -121,8 +130,9 @@ export async function buildGroundedContext(userQuestion, externalSections, siteI
   // it hallucinate site info. Distinct from the off-topic case below (index has
   // chunks but none clear threshold → null → generic chat, which is correct).
   if (!index || index.length === 0) {
+    const opening = persona?.trim() || DEFAULT_PERSONA;
     return {
-      systemContent: `${BASE_INSTRUCTIONS}\n\nThe page context is unavailable; answer generally or say you cannot see this page's content.`,
+      systemContent: `${opening} ${FORMAT_RULES}\n\nThe page context is unavailable; answer generally or say you cannot see this page's content.`,
       sources: [],
       version,
     };
@@ -130,7 +140,7 @@ export async function buildGroundedContext(userQuestion, externalSections, siteI
 
   const relevant = await retrieveRelevant(userQuestion, index, RAG.TOP_K);
   return {
-    systemContent: relevant.length ? buildSystemMessage(relevant) : null,
+    systemContent: relevant.length ? buildSystemMessage(relevant, persona) : null,
     sources: relevant, // [{anchor,title,url,text,score}] — no vec
     version,
   };

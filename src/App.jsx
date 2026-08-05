@@ -88,6 +88,14 @@ function App() {
   const [isIndexing, setIsIndexing] = useState(false);
   const [widgetLabel, setWidgetLabel] = useState(null);
   const siteIndexUrlRef = useRef(null);
+  // Site-owner persona override (RAG opening line only — never rendered, so a
+  // ref is enough; no re-render needed like widgetLabel).
+  const personaRef = useRef(null);
+  // Site-owner custom model URL override. Read fresh inside loadModel() at call
+  // time (not baked into `selectedModel`) — the mount effect below sets this ref
+  // and calls loadModel() synchronously in the same tick, before render #1's
+  // closures would ever see the updated value otherwise.
+  const modelUrlRef = useRef(null);
   // Host→iframe section bridge (cross-origin support). embed.ts posts page
   // sections via postMessage; we store them here and feed them to the RAG index.
   const externalSectionsRef = useRef(null);
@@ -97,7 +105,9 @@ function App() {
   const [domainParam, setDomainParam] = useState(null);
   const selectedModel = localModelFiles.length
     ? { name: localModelFiles[0].name, url: "file", license: "" }
-    : PRESET_MODELS[modelId];
+    : modelUrlRef.current
+      ? { name: "Custom model", url: modelUrlRef.current, license: "" }
+      : PRESET_MODELS[modelId];
 
   const wllama = useMemo(() => getWllamaInstance(), []);
 
@@ -108,8 +118,13 @@ function App() {
   const loadModel = async () => {
     setModelState((current) => ({ ...current, isLoading: true }));
 
-    const source = localModelFiles.length ? "local_file" : "preset";
-    const modelName = localModelFiles.length ? localModelFiles[0].name : selectedModel.name;
+    const customModelUrl = modelUrlRef.current;
+    const source = localModelFiles.length ? "local_file" : customModelUrl ? "custom_url" : "preset";
+    const modelName = localModelFiles.length
+      ? localModelFiles[0].name
+      : customModelUrl
+        ? "Custom model"
+        : selectedModel.name;
     const loadStartTime = Date.now();
 
     trackEvent({ name: "model_load_started", params: { model_name: modelName, source } });
@@ -134,6 +149,8 @@ function App() {
       await wllama.exit();
       if (localModelFiles.length) {
         await wllama.loadModel(localModelFiles, options);
+      } else if (customModelUrl) {
+        await wllama.loadModelFromUrl(customModelUrl, options);
       } else {
         await wllama.loadModelFromUrl(selectedModel.url, options);
       }
@@ -177,6 +194,8 @@ function App() {
     const embeddedParam = urlParams.get("embedded");
     const labelParam = urlParams.get("label");
     const siteIndexUrlParam = urlParams.get("siteIndexUrl");
+    const personaParam = urlParams.get("persona");
+    const modelUrlParam = urlParams.get("modelUrl");
 
     // eslint-disable-next-line no-console
     console.log({
@@ -186,7 +205,15 @@ function App() {
     });
 
     if (systemParam) {
-      setCustomSystemMessage(decodeURIComponent(systemParam));
+      const decodedSystemParam = decodeURIComponent(systemParam);
+      setCustomSystemMessage(decodedSystemParam);
+      // Root-cause fix: `system` (existing script-tag query param — linkedinify,
+      // portfolio-template already ship this as their persona) was previously only
+      // used as the non-grounded fallback system message; RAG mode silently
+      // discarded it. Feed it as the grounded-mode opening line too, so existing
+      // integrations are fixed with no changes on their end. `persona` (below,
+      // set later) wins if both are present — it's the newer, purpose-built field.
+      personaRef.current = decodedSystemParam;
     }
 
     // Check if we're in embedded mode
@@ -203,6 +230,8 @@ function App() {
     // siteIndexUrl → passed to the index layer (static site-index.json merge, m3).
     if (labelParam) setWidgetLabel(decodeURIComponent(labelParam));
     if (siteIndexUrlParam) siteIndexUrlRef.current = decodeURIComponent(siteIndexUrlParam);
+    if (personaParam) personaRef.current = decodeURIComponent(personaParam); // wins over `system` above if both set
+    if (modelUrlParam) modelUrlRef.current = decodeURIComponent(modelUrlParam);
 
     const sessions = loadChatSessions(domainParam, embeddedParam === "true" ? "session" : "local");
     setChatSessions(sessions);
@@ -465,7 +494,8 @@ function App() {
         const grounded = await buildGroundedContext(
           currentPrompt.trim(),
           externalSectionsRef.current,
-          siteIndexUrlRef.current
+          siteIndexUrlRef.current,
+          personaRef.current
         );
         if (grounded.systemContent) {
           systemContent = grounded.systemContent;

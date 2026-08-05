@@ -100,6 +100,32 @@ describe("buildGroundedContext (FR-4)", () => {
     await buildGroundedContext("q2");
     expect(getCurrentIndexVersion()).toBe(v1); // no Story 5 swap → unchanged
   });
+
+  it("a persona override replaces only the opening line; format rules + example still apply", async () => {
+    mockRetrieve.mockResolvedValue([
+      { anchor: "pricing", title: "Pricing", url: "http://localhost/#pricing", text: "$9 per month", score: 0.5 },
+    ]);
+    const res = await buildGroundedContext("q", undefined, undefined, "You are Aria, Acme's support assistant.");
+    expect(res.systemContent).toContain("You are Aria, Acme's support assistant.");
+    expect(res.systemContent).not.toContain("You are a friendly assistant chatting with a visitor");
+    // Fixed anti-hallucination rules are never replaced by persona.
+    expect(res.systemContent).toContain("Never copy the notes verbatim");
+  });
+
+  it("no persona → falls back to the default opening line (unchanged behavior)", async () => {
+    mockRetrieve.mockResolvedValue([
+      { anchor: "pricing", title: "Pricing", url: "http://localhost/#pricing", text: "$9 per month", score: 0.5 },
+    ]);
+    const res = await buildGroundedContext("q");
+    expect(res.systemContent).toContain("You are a friendly assistant chatting with a visitor on this website.");
+  });
+
+  it("persona also swaps the opening line in the degraded (index-unavailable) system message", async () => {
+    mockScrape.mockReturnValue([]); // page yielded 0 scrapeable chunks
+    const res = await buildGroundedContext("anything", undefined, undefined, "You are Aria.");
+    expect(res.systemContent).toContain("You are Aria.");
+    expect(res.systemContent).toContain("unavailable");
+  });
 });
 
 describe("navigateToSection (FR-5)", () => {
