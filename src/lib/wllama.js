@@ -13,8 +13,6 @@ export const CHAT_ROLE = Object.freeze({
   user: "user",
 });
 
-const isLocalHost = ["localhost", "0.0.0.0", "127.0.0.1"].includes(window.location.hostname);
-
 const models = {
   "Gemma 3 (1B)": {
     url: "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
@@ -26,13 +24,10 @@ const models = {
     license: "https://raw.githubusercontent.com/meta-llama/llama-models/refs/heads/main/models/llama3_2/LICENSE",
     description: "Meta's Llama 3.2 goes small with this 1B model",
   },
-  "LFM2 (700M)": {
-    url: isLocalHost
-      ? `${window.location.origin}/models/LFM2-700M-Q4_K_M.gguf`
-      : "https://huggingface.co/unsloth/LFM2-700M-GGUF/resolve/main/LFM2-700M-Q4_K_M.gguf",
-    license: "https://www.liquid.ai/lfm-license",
-    description: "LFM2 models by Liquid AI are designed for on-device efficiency",
-  },
+  // ponytail: LFM2 (700M) removed — Liquid AI's Mamba/SSM hybrid state alloc
+  // (~1.08GB) exceeds the WASM linear-memory budget and never loaded in this
+  // runtime (see test-files/spike/RESULT.md #3). Only dense transformer
+  // architectures (Gemma/Llama/Qwen) are known to load here.
   "Qwen 3 (0.6B)": {
     url: "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf",
     license: "https://qwenlm.github.io/",
