@@ -94,9 +94,24 @@ class EmbedScript {
     // Forward the host's PRIVATE_CHAT_CONFIG (label, siteIndexUrl) as query params.
     // embed.ts is the ONLY host-context code; the iframe reads these from its own URL.
     const config = window.PRIVATE_CHAT_CONFIG;
-    if (config) {
-      if (config.label) iframeUrl.searchParams.set('label', config.label);
-      if (config.siteIndexUrl) iframeUrl.searchParams.set('siteIndexUrl', config.siteIndexUrl);
+    if (config?.label) iframeUrl.searchParams.set('label', config.label);
+
+    // siteIndexUrl means "site-index.json next to the HOST page" — but the iframe
+    // itself is loaded from private-chat's own path (e.g. /private-chat/), a
+    // DIFFERENT path under the same origin when the host is a sibling GitHub
+    // Pages project site (e.g. /branchdiff-releases/). A relative or root-relative
+    // value forwarded as-is would be resolved by the iframe against ITS OWN
+    // location, not the host's — silently fetching the wrong file (a sibling
+    // project's index, or whatever happens to live at the shared origin root).
+    // Resolve it HERE, against the host's own location, while we still can; the
+    // iframe then receives an unambiguous absolute URL either way. Default
+    // ("site-index.json" next to the current host page) covers the common case
+    // with zero config.
+    try {
+      const siteIndexPath = config?.siteIndexUrl || 'site-index.json';
+      iframeUrl.searchParams.set('siteIndexUrl', new URL(siteIndexPath, window.location.href).toString());
+    } catch (error) {
+      console.warn('[private-chat] Failed to resolve siteIndexUrl:', error);
     }
 
     iframe.src = iframeUrl.toString();
@@ -107,9 +122,15 @@ class EmbedScript {
     iframe.style.backgroundColor = 'white';
     iframe.style.display = 'block';
     
-    // Allow necessary permissions for WebAssembly
+    // Allow necessary permissions for WebAssembly. allow-popups(-to-escape-sandbox)
+    // is required for "Related sections" links to a DIFFERENT page/site to open
+    // in a new tab (see navigateToSection in ragEngine.js) — without it the
+    // sandbox silently blocks window.open() from inside the iframe.
     iframe.allow = 'cross-origin-isolated';
-    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms');
+    iframe.setAttribute(
+      'sandbox',
+      'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox'
+    );
 
     // Bridge host-side sections to the iframe + handle its scroll requests.
     // targetOrigin restricts postMessage to this iframe's origin only.
@@ -143,7 +164,11 @@ class EmbedScript {
         return;
       }
     }
-    if (url) window.location.href = url;
+    // The anchor isn't on the page currently being viewed — it's a different
+    // page (or an entirely different domain). Open it in a new tab instead of
+    // navigating this one away, which would reload the host (and this iframe,
+    // and the chat conversation, with it).
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   // Host→iframe section bridge + iframe→host scroll bridge.

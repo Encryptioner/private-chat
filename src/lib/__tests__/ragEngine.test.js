@@ -34,7 +34,7 @@ vi.mock("../siteIndex.js", () => ({
   combineIndexes: vi.fn((live, statik) => [...(live || []), ...(statik || [])]),
 }));
 
-let buildGroundedContext, navigateToSection, getCurrentIndexVersion;
+let buildGroundedContext, navigateToSection, isCurrentPageTarget, getCurrentIndexVersion;
 
 beforeEach(async () => {
   vi.resetModules();
@@ -44,7 +44,9 @@ beforeEach(async () => {
     { anchor: "pricing", title: "Pricing", url: "http://localhost/#pricing", text: "Pricing is $9." },
   ]);
   document.body.innerHTML = "";
-  ({ buildGroundedContext, navigateToSection, getCurrentIndexVersion } = await import("../ragEngine.js"));
+  ({ buildGroundedContext, navigateToSection, isCurrentPageTarget, getCurrentIndexVersion } = await import(
+    "../ragEngine.js"
+  ));
 });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -114,14 +116,27 @@ describe("navigateToSection (FR-5)", () => {
     expect(el.style.outline).toMatch(/2px/); // transient highlight set
   });
 
-  it("cross-path url navigates the parent window (best-effort)", () => {
+  it("cross-path url on the same origin opens a new tab (never navigates the host away)", () => {
     const fakeParent = {
       document: { getElementById: () => null },
-      location: { pathname: "/other-route", href: "" },
+      location: { pathname: "/other-route", href: "", origin: "http://localhost" },
     };
-    vi.stubGlobal("parent", fakeParent); // window.parent → fake (different path)
+    vi.stubGlobal("parent", fakeParent); // window.parent → fake (different path, same origin)
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => {});
     navigateToSection({ url: "http://localhost/pricing-page", anchor: "p" });
-    expect(fakeParent.location.href).toBe("http://localhost/pricing-page");
+    expect(openSpy).toHaveBeenCalledWith("http://localhost/pricing-page", "_blank", "noopener,noreferrer");
+    expect(fakeParent.location.href).toBe(""); // never navigated the host in-place
+  });
+
+  it("same-path but different-origin url opens a new tab (not treated as same page)", () => {
+    const fakeParent = {
+      document: { getElementById: () => null },
+      location: { pathname: "/pricing-page", href: "", origin: "http://localhost" },
+    };
+    vi.stubGlobal("parent", fakeParent);
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => {});
+    navigateToSection({ url: "https://evil.example/pricing-page", anchor: "p" });
+    expect(openSpy).toHaveBeenCalledWith("https://evil.example/pricing-page", "_blank", "noopener,noreferrer");
   });
 
   it("cross-origin parent → asks embed.ts to scroll/navigate via postMessage", () => {
@@ -147,5 +162,45 @@ describe("navigateToSection (FR-5)", () => {
     // jsdom default: window.parent === window (no stub) → standalone branch
     navigateToSection({ url: new URL("#me", window.location.href).href, anchor: "me" });
     expect(scrollSpy).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+  });
+});
+
+describe("isCurrentPageTarget (RelatedSections' new-tab affordance)", () => {
+  it("no url → treated as current page (anchor-only pointer)", () => {
+    expect(isCurrentPageTarget(undefined)).toBe(true);
+  });
+
+  it("same origin + same pathname (standalone, no parent) → current page", () => {
+    expect(isCurrentPageTarget(new URL("#pricing", window.location.href).href)).toBe(true);
+  });
+
+  it("same-origin parent, matching path → current page", () => {
+    vi.stubGlobal("parent", {
+      location: { origin: "http://localhost", pathname: "/", href: "http://localhost/" },
+    });
+    expect(isCurrentPageTarget("http://localhost/#pricing")).toBe(true);
+  });
+
+  it("same-origin parent, different path → NOT current page", () => {
+    vi.stubGlobal("parent", {
+      location: { origin: "http://localhost", pathname: "/", href: "http://localhost/" },
+    });
+    expect(isCurrentPageTarget("http://localhost/other-page")).toBe(false);
+  });
+
+  it("same path but different origin → NOT current page", () => {
+    vi.stubGlobal("parent", {
+      location: { origin: "http://localhost", pathname: "/pricing", href: "http://localhost/pricing" },
+    });
+    expect(isCurrentPageTarget("https://evil.example/pricing")).toBe(false);
+  });
+
+  it("cross-origin parent (can't read location) → defaults to NOT current page", () => {
+    vi.stubGlobal("parent", {
+      get location() {
+        throw new TypeError("cross-origin");
+      },
+    });
+    expect(isCurrentPageTarget("http://localhost/#pricing")).toBe(false);
   });
 });

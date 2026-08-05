@@ -16,8 +16,13 @@ const CACHE_TTL_MS = 30 * 60 * 1000;
 
 /**
  * Resolves which site-index.json to load. Priority:
- * 1. Explicit argument (the `siteIndexUrl` query param App read from the iframe URL)
- * 2. Fallback: /site-index.json at the current origin root
+ * 1. Explicit argument (the `siteIndexUrl` query param App read from the iframe URL) —
+ *    in embed mode, embed.ts (host context) always resolves this to an ABSOLUTE URL
+ *    against the host page's own location before forwarding it, so this is normally
+ *    already correct even when host and iframe share an origin but not a path prefix
+ *    (e.g. sibling GitHub Pages project sites).
+ * 2. Fallback: /site-index.json at the current (iframe's) origin root — only reachable
+ *    in standalone mode (no embed.ts) or if the argument is empty for some other reason.
  */
 function resolveIndexUrl(explicitUrl) {
   return explicitUrl || "/site-index.json";

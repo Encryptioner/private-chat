@@ -69,7 +69,7 @@ Set this **before** the script tag. All fields are optional.
 <script>
   window.PRIVATE_CHAT_CONFIG = {
     label: "Acme Labs",            // shown in the widget greeting
-    siteIndexUrl: "/site-index.json", // optional pre-built cross-page index
+    siteIndexUrl: "site-index.json", // optional — override where the cross-page index lives
     getSections: null              // optional custom scraper (see below)
   };
 </script>
@@ -80,10 +80,10 @@ Set this **before** the script tag. All fields are optional.
 | Field | Type | Purpose |
 |-------|------|---------|
 | `label` | `string` | Replaces the "Hi, how may I help you?" greeting (e.g. `"How can Acme Labs help you?"`). |
-| `siteIndexUrl` | `string` | URL of a pre-built static index (`site-index.json`) for cross-page awareness. Missing file = ignored. Generate it with the bundled crawler (Node or Python) — see [Cross-page awareness](#cross-page-awareness-via-site-indexjson) below. |
+| `siteIndexUrl` | `string` | Path or URL to a pre-built static index (`site-index.json`) for cross-page awareness. **Default (omit this field): `site-index.json` right next to the host page.** Missing file = ignored. Resolved against the **host page's own location** (embed.ts does this before forwarding it to the iframe) — see [the shared-origin gotcha](#gotcha-siteindexurl-on-a-shared-origin) below before setting this to anything with a leading `/`. Generate the file with the bundled crawler (Node or Python) — see [Cross-page awareness](#cross-page-awareness-via-site-indexjson) below. |
 | `getSections` | `function` | Your own scraper. See below. |
 
-**No config** → the widget live-scrapes the current page and grounds answers in it.
+**No config** → the widget live-scrapes the current page and grounds answers in it, and (as of the default above) also checks for a `site-index.json` next to the current page automatically.
 
 ---
 
@@ -262,19 +262,37 @@ pnpm build:site-index -- --url https://yoursite.example/ [--depth 1] \
 ### Deploy it
 
 1. Commit the generated `site-index.json` to your site repo (at the root, or `public/` for CRA).
-2. Serve it at `/site-index.json` (deploy the repo).
-3. Point the widget at it — set `siteIndexUrl`, or rely on the `/site-index.json` fallback:
-   ```html
-   <script>
-     window.PRIVATE_CHAT_CONFIG = { label: "My Site", siteIndexUrl: "/site-index.json" };
-   </script>
-   ```
+2. Serve it next to your host page (deploy the repo) — e.g. at `https://yoursite.example/site-index.json`,
+   or `https://yoursite.example/some-app/site-index.json` if your site itself lives under a path.
+3. **Nothing else to configure** — the default (`site-index.json` next to the current host page) finds
+   it automatically. Only set `siteIndexUrl` explicitly if you're putting the file somewhere else, and
+   if you do, read [the gotcha below](#gotcha-siteindexurl-on-a-shared-origin) first.
 4. **Re-run the crawler when content changes** — `site-index.json` is a static snapshot. The widget's
    content-hash cache means a new file triggers one re-embed, then it's cached again.
 
 > Worked example: `branchdiff-releases` ships a `site-index.json` covering its landing + guideline +
-> changelog (3 pages, ~189 chunks), so the chat answers install/changelog/guideline questions from any
+> changelog (3 pages, ~269 chunks), so the chat answers install/changelog/guideline questions from any
 > page and links to the right one.
+
+### Gotcha — `siteIndexUrl` on a shared origin
+
+The widget iframe is always loaded from **private-chat's own path** (e.g. `encryptioner.github.io/private-chat/`),
+never your site's path — even though it *looks* embedded in your page. If your site is a **GitHub Pages
+project site** (or any site sharing an origin with something else at a different path, e.g.
+`encryptioner.github.io/branchdiff-releases/` sharing `encryptioner.github.io` with `encryptioner.github.io/`
+itself and every other project under that account), a **root-relative** path like `siteIndexUrl:
+"/site-index.json"` resolves against the **shared origin root** — not your project's own directory. If
+something else on that origin (a different project, the account's own root page) happens to serve a
+`site-index.json` too, the widget silently loads **that** file instead of yours: same filename, wrong
+content, no error. This is exactly what happened to `branchdiff-releases` — it set `siteIndexUrl:
+"/site-index.json"` and the widget kept grounding answers in `encryptioner.github.io`'s (the account's
+root portfolio page) index instead of its own.
+
+- **Fix:** omit `siteIndexUrl` (new default resolves `site-index.json` next to the **host page**,
+  correctly, via `embed.ts`) — or if you must set it explicitly, use a **fully-qualified absolute URL**
+  (`https://yoursite.example/your-path/site-index.json`), which is unambiguous regardless of origin
+  sharing. Avoid a bare leading-`/` path unless your site is genuinely deployed at its origin's root
+  (a custom domain, or a GitHub *user/org* page with no project path).
 
 ### Testing locally before deploying
 
@@ -296,23 +314,18 @@ stays as-is) to the printed local URL:
 <script id="aiChatEmbedScript" defer src="http://localhost:5173/embed.js"></script>
 ```
 
-**Gotcha — different localhost ports are different origins.** In production, your site and the
-widget iframe are typically served from the same origin (e.g. both under `encryptioner.github.io`,
-just different paths), so the widget's `fetch("/site-index.json")` resolves relative to that
-shared origin and finds your file. In local dev, your site (e.g. `localhost:3000`) and
-private-chat's dev server (`localhost:5173`) are **different origins** — the same relative fetch
-resolves against `localhost:5173` instead, so it 404s and silently falls back to `[]` (no crash,
-no console error — just missing cross-page context, per the [Troubleshooting](#troubleshooting)
-table). For a full local test, copy your `site-index.json` into private-chat's `public/` directory
-so it's reachable at `localhost:5173/site-index.json` too:
-
-```bash
-cp /path/to/your-site/site-index.json private-chat/public/site-index.json
-```
+**Different localhost ports are different origins — but that's fine.** Your site (e.g.
+`localhost:3000`) and private-chat's dev server (`localhost:5173`) don't share an origin, same as
+your deployed site and `encryptioner.github.io/private-chat/` don't share a *path* in production.
+Neither matters: `embed.ts` (the script tag you swapped above) always runs **in your page**, so it
+resolves `siteIndexUrl` against **your page's own location** before ever talking to the iframe —
+whatever that location is, dev port or production path. A relative value (the default —
+`site-index.json` next to your page, or your own explicit relative path) just works in both
+environments with no copying, no environment-detection code, and nothing to revert afterward.
 
 Then open your site, ask a question the current page doesn't show, and confirm you get a grounded
-answer with a "Related sections" link. Revert the script `src` override (and remove the copied
-file) before deploying — neither should ship.
+answer with a "Related sections" link. Revert the script `src` override before deploying — that's
+the only thing to undo.
 
 ### Alternative crawler — Python (Scrapling)
 
@@ -416,9 +429,25 @@ Node, Python, or your own script (e.g. run from inside your own codebase at buil
 When the model's answer relates to retrieved content, up to 3 links appear under it. Clicking
 one:
 
-- **Same-origin host** → smooth-scrolls the host element + brief outline highlight.
-- **Cross-origin host** → asks `embed.js` to scroll/navigate the host (the iframe can't reach
-  a cross-origin DOM directly; `postMessage` bridges it).
+- **Part of the page currently being viewed** (same origin + same path as the host) →
+  smooth-scrolls the host element + brief outline highlight.
+- **A different page or a different domain** → opens in a **new tab** instead of navigating the
+  current one away. Same-tab navigation would reload the host page — and the iframe, and the
+  chat conversation, along with it. This covers cross-page links within your own site (e.g. a
+  changelog answer while browsing the landing page) and links from `site-index.json` entries that
+  point elsewhere entirely.
+- Same-origin hosts resolve this directly (`ragEngine.js`'s `navigateToSection`); cross-origin
+  hosts ask `embed.js` to do it via `postMessage` (the iframe can't reach a cross-origin DOM
+  directly). Either way, the decision (scroll vs. new tab) is the same.
+- **The link looks like what it does, before you click it**: a link that will open in a new tab
+  shows a small ↗ icon next to its title, gets a real `target="_blank" rel="noopener noreferrer"`
+  (so hover/right-click/middle-click all agree with the click handler, and it degrades correctly
+  if JS is unavailable), and its accessible name gains "(opens in a new tab)". Same-page links get
+  none of that — they look like a normal in-page jump because that's what they are.
+  `isCurrentPageTarget` (`ragEngine.js`) is the single check both the icon and the click use, so
+  they can't drift apart. One inherent gap: for a **cross-origin** host the icon always shows
+  (can't verify same-page without an async round trip to `embed.js`) — worst case a link scrolls
+  when the icon implied a new tab, never the reverse.
 - Links hide automatically when no chunk clears the relevance threshold (off-topic question).
 
 For links to work, sections need an `anchor` (element `id`) and `url`. The built-in scraper
@@ -434,6 +463,7 @@ assigns ids to id-less headings so they're navigable.
 | Links don't scroll the host | Sections lack an `anchor`/`url` (custom scraper) — add them. Cross-origin links need the latest `embed.js` (which handles `scroll-to`). |
 | First question is slow | The ~35MB embedder downloads on the **first** question, then caches. Subsequent loads are instant. |
 | Widget doesn't appear | The script tag needs `id="aiChatEmbedScript"` and the exact `src`. Check the browser console. |
+| Answers/links reference a **different site's content** | You set `siteIndexUrl` to a root-relative path (`/site-index.json`) on a site that shares its origin with something else — it fetched a sibling's file. See [the gotcha](#gotcha-siteindexurl-on-a-shared-origin). |
 | Cross-origin still context-less | Ensure you're on the latest `embed.js` (the host-side scrape ships there). Older cached versions fall back to iframe-side scrape (same-origin only). |
 
 ---
@@ -442,9 +472,13 @@ assigns ids to id-less headings so they're navigable.
 
 - **No backend, no API key.** Inference is 100% in-browser (Wasm). Page content never leaves
   the visitor's browser.
-- The iframe is sandboxed (`allow-scripts allow-same-origin allow-forms`) — required for
-  WebAssembly. It cannot read a cross-origin host DOM; that's why `embed.js` (host context)
-  does the scraping and bridges sections via `postMessage` with a restricted `targetOrigin`.
+- The iframe is sandboxed (`allow-scripts allow-same-origin allow-forms allow-popups
+  allow-popups-to-escape-sandbox`) — required for WebAssembly and for "Related sections" links to
+  a different page/domain to open in an unsandboxed new tab. It cannot read a cross-origin host
+  DOM; that's why `embed.js` (host context) does the scraping and bridges sections via
+  `postMessage` with a restricted `targetOrigin`.
+- New-tab links use `window.open(url, "_blank", "noopener,noreferrer")` — the new tab can't reach
+  back into this window via `window.opener` (tab-nabbing protection).
 - Scraped text becomes the model's context. On trusted static sites (the v1 targets) the site
   owner controls that content. On user-generated-content sites (comments/forums), scraped UGC
   could be a prompt-injection vector — revisit before embedding there.

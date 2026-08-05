@@ -117,9 +117,44 @@ export async function buildGroundedContext(userQuestion, externalSections, siteI
 }
 
 /**
+ * Best-effort check: does `url` point at the page currently being viewed (the
+ * HOST page)? Shared by navigateToSection (click-time decision: scroll vs. new
+ * tab) and RelatedSections (render-time: which links get the "opens in a new
+ * tab" affordance) — one source of truth so the UI never promises one thing
+ * and does another.
+ *
+ *   - same-origin parent (the common case — even a widget embedded under a
+ *     DIFFERENT path on the same origin, e.g. a sibling GitHub Pages project):
+ *     exact match on origin + pathname. Accurate — this is exactly the check
+ *     navigateToSection's click-time decision uses.
+ *   - cross-origin parent: can't read the host's location at all (browser
+ *     security boundary) — the real click-time decision instead asks embed.ts
+ *     to check anchor existence on the LIVE host DOM (see navigateToSection).
+ *     Rendering can't make that round trip per link, so it defaults to "not
+ *     the current page" (shows the new-tab affordance) — the safer of the two
+ *     possible wrong guesses: worst case a link scrolls when the icon implied
+ *     a new tab, never the reverse.
+ *   - standalone (no parent): compares against this document's own location.
+ * @param {string} [url]
+ * @returns {boolean}
+ */
+export function isCurrentPageTarget(url) {
+  if (!url) return true; // anchor-only pointer implicitly targets the current page
+  try {
+    const loc = window.parent && window.parent !== window ? window.parent.location : window.location;
+    const target = new URL(url, window.location.href);
+    return target.origin === loc.origin && target.pathname === loc.pathname;
+  } catch {
+    return false; // cross-origin parent — can't verify; assume a different page
+  }
+}
+
+/**
  * Navigate the HOST (parent) page to a section.
- *   same-origin parent → smooth scroll + transient highlight (same page), or
- *     navigate the parent (cross-page).
+ *   same-origin parent → smooth scroll + transient highlight when the link is
+ *     part of the page currently being viewed; a DIFFERENT page (or domain)
+ *     opens in a new tab instead — same-tab navigation would reload the host
+ *     (and this iframe, and the chat conversation, with it).
  *   cross-origin parent → ask embed.ts (host context) to scroll/navigate via
  *     postMessage — the iframe can't touch a cross-origin host DOM, but embed.ts
  *     can always reach its own DOM. Falls back to this window if no parent.
@@ -137,13 +172,9 @@ export function navigateToSection({ url, anchor } = {}) {
   let sameOriginParent = false;
   let crossOriginParent = false;
   let targetDoc = document;
-  let targetWin = window;
-  let currentPath = window.location.pathname;
   try {
     if (window.parent && window.parent !== window) {
       targetDoc = window.parent.document; // throws cross-origin
-      targetWin = window.parent;
-      currentPath = window.parent.location.pathname;
       sameOriginParent = true;
     }
   } catch {
@@ -160,10 +191,17 @@ export function navigateToSection({ url, anchor } = {}) {
     return true;
   };
 
+  // A different page or domain than the one currently being viewed opens in a
+  // new tab — never navigate the current tab away (it would tear down the host
+  // page, this iframe, and the conversation with it). Requires the iframe's
+  // sandbox to include allow-popups (see embed.ts _createIframe).
+  const openInNewTab = (href) => {
+    if (href) window.open(href, "_blank", "noopener,noreferrer");
+  };
+
   if (sameOriginParent) {
-    const samePage = url ? new URL(url, window.location.href).pathname === currentPath : true;
-    if (samePage && scrollIntoView(targetDoc)) return;
-    if (url) targetWin.location.href = url; // cross-page navigation on the host
+    if (isCurrentPageTarget(url) && scrollIntoView(targetDoc)) return;
+    openInNewTab(url);
     return;
   }
 
@@ -182,5 +220,5 @@ export function navigateToSection({ url, anchor } = {}) {
 
   // Standalone (no parent) or postMessage failed: act on this document.
   if (scrollIntoView(document)) return;
-  if (url) window.location.href = url;
+  openInNewTab(url);
 }
