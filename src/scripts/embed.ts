@@ -234,8 +234,45 @@ class EmbedScript {
     iframe.addEventListener('load', () => void send());
   }
 
+  // Dark-mode + small-screen overrides for the widget chrome. Inline styles
+  // can't respond to @media, so the handful of rules that need to (colors that
+  // must follow prefers-color-scheme, fullscreen-on-mobile) live in one
+  // injected <style> tag instead of everything being inline.
+  _injectWidgetStyles(): void {
+    const styleId = 'private-chat-widget-styles';
+    if (document.getElementById(styleId)) return;
+
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      @media (prefers-color-scheme: dark) {
+        #ai-chat-container-wrapper { background: #1f2937 !important; border-color: #374151 !important; }
+        #ai-chat-container-wrapper .pc-chat-header { background: #111827 !important; border-color: #374151 !important; }
+        #ai-chat-container-wrapper .pc-chat-title { color: #e5e7eb !important; }
+        #ai-chat-container-wrapper .pc-icon-btn { color: #9ca3af !important; }
+        #ai-chat-container-wrapper .pc-icon-btn:hover { background: #374151 !important; color: #e5e7eb !important; }
+      }
+      @media (max-width: 480px) {
+        #ai-chat-container-wrapper {
+          position: fixed !important;
+          inset: 0 !important;
+          width: 100vw !important;
+          height: 100dvh !important;
+          max-width: none !important;
+          max-height: none !important;
+          border-radius: 0 !important;
+          bottom: auto !important;
+          right: auto !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   // Create floating chat widget with toggle functionality
   _createFloatingWidget(): HTMLDivElement {
+    this._injectWidgetStyles();
+
     const widget = document.createElement('div');
     widget.id = floatingWidgetId;
     widget.style.cssText = `
@@ -249,6 +286,7 @@ class EmbedScript {
     // Create chat button
     const chatButton = document.createElement('button');
     chatButton.id = 'ai-chat-toggle-btn';
+    chatButton.setAttribute('aria-label', 'Open AI chat assistant');
     chatButton.innerHTML = `
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
@@ -305,6 +343,7 @@ class EmbedScript {
 
     // Create chat header with controls
     const chatHeader = document.createElement('div');
+    chatHeader.className = 'pc-chat-header';
     chatHeader.style.cssText = `
       display: flex;
       justify-content: space-between;
@@ -317,6 +356,7 @@ class EmbedScript {
 
     // Chat title
     const chatTitle = document.createElement('div');
+    chatTitle.className = 'pc-chat-title';
     chatTitle.textContent = '🤖 AI Assistant';
     chatTitle.style.cssText = `
       font-weight: 600;
@@ -333,6 +373,8 @@ class EmbedScript {
 
     // Minimize button
     const minimizeBtn = document.createElement('button');
+    minimizeBtn.className = 'pc-icon-btn';
+    minimizeBtn.setAttribute('aria-label', 'Minimize chat');
     minimizeBtn.innerHTML = `
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M6 9l6 6 6-6"/>
@@ -360,8 +402,10 @@ class EmbedScript {
       minimizeBtn.style.color = '#6b7280';
     };
 
-    // Close button  
+    // Close button
     const closeBtn = document.createElement('button');
+    closeBtn.className = 'pc-icon-btn';
+    closeBtn.setAttribute('aria-label', 'Close chat');
     closeBtn.innerHTML = `
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M6 18L18 6M6 6l12 12"/>
@@ -445,6 +489,15 @@ class EmbedScript {
       isMinimized = true;
       isOpen = false;
     };
+
+    // Escape closes the widget and returns focus to the toggle button —
+    // otherwise keyboard users get stuck tabbing through host content behind it.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        hideChat();
+        chatButton.focus();
+      }
+    });
 
     // Chat button click handler
     chatButton.onclick = async () => {
