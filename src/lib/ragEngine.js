@@ -56,13 +56,17 @@ export function hasIndex() {
 }
 
 const BASE_INSTRUCTIONS =
-  "You are a helpful assistant embedded on this website. Answer ONLY using the CONTEXT provided below. If the answer is not in the context, say you do not have that information about this page. Keep responses concise.";
+  "You are a friendly assistant chatting with a visitor on this website. Use the NOTES below to answer " +
+  "their question in your own words, like a real conversation — 1 to 3 short sentences, no lists, no headings. " +
+  "Never copy the notes verbatim and never output URLs, section names, or brackets — links are shown separately. " +
+  "If the notes don't cover the question, say you don't have that information about this page.";
 
+// Plain text only (no title/anchor/url) — the "Related sections" links already
+// come from `sources` in the UI, so the model is never given citation-shaped
+// text to echo back verbatim (that was the #1 cause of copy-paste answers).
 function buildSystemMessage(relevantChunks) {
-  const context = relevantChunks
-    .map((c, i) => `(${i + 1}) section "${c.title}" [${c.anchor}] ${c.url}\n${c.text}`)
-    .join("\n\n");
-  return `${BASE_INSTRUCTIONS}\n\nCONTEXT:\n${context}`;
+  const notes = relevantChunks.map((c) => c.text).join("\n---\n");
+  return `${BASE_INSTRUCTIONS}\n\nNOTES:\n${notes}`;
 }
 
 /**

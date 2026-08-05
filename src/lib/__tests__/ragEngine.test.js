@@ -52,15 +52,16 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("buildGroundedContext (FR-4)", () => {
-  it("builds a grounded system message from top-k chunks, each url surfaced", async () => {
+  it("builds a grounded system message from top-k chunks; urls stay out of the model's context", async () => {
     mockRetrieve.mockResolvedValue([
       { anchor: "pricing", title: "Pricing", url: "http://localhost/#pricing", text: "$9 per month", score: 0.5 },
       { anchor: "contact", title: "Contact", url: "http://localhost/#contact", text: "email us", score: 0.4 },
     ]);
     const res = await buildGroundedContext("where is pricing");
     expect(res.systemContent).toContain("$9 per month");
-    expect(res.systemContent).toContain("http://localhost/#pricing"); // R1: url in context
-    expect(res.systemContent).toContain("pricing"); // anchor surfaced
+    // urls/anchors are citation-shaped text the model would just echo back —
+    // they're surfaced to the UI via `sources` instead, never in systemContent.
+    expect(res.systemContent).not.toContain("http://localhost/#pricing");
     expect(res.sources).toHaveLength(2);
     expect(res.sources[0].url).toContain("#pricing");
     expect(res.version).toBeTruthy(); // race-guard stamp (grill Maj3)

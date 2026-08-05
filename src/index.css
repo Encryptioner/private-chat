@@ -2,6 +2,16 @@
   box-sizing: border-box;
 }
 
+/* Radix Themes defaults these to "default" (arrow cursor); we want a hand
+   cursor on every interactive control (buttons, menu items, checkboxes...). */
+.radix-themes {
+  --cursor-button: pointer;
+  --cursor-checkbox: pointer;
+  --cursor-radio: pointer;
+  --cursor-switch: pointer;
+  --cursor-menu-item: pointer;
+}
+
 .welcome-text {
   padding-top: 20vh;
 }

@@ -30,6 +30,13 @@ import RelatedSections from "./components/RelatedSections.jsx";
 const ELLIPSIS = "...";
 const DEFAULT_MODEL_ID = Object.values(PRESET_MODELS).find((m) => m.default)?.name || Object.keys(PRESET_MODELS)[0];
 
+// Small/tiny models occasionally leak their own chat-template control tokens as
+// literal text (e.g. "<end_of_turn>", "<|im_end|>", "<|eot_id|>") instead of
+// stopping cleanly — most visible on the 270M default. Strips anything shaped
+// like a template token so a leaked one never renders mid-answer.
+const STRAY_TOKEN_RE = /<\|[^|>\n]{1,32}\|>|<\/?(?:start|end)_of_turn>/gi;
+const stripStrayTokens = (text) => text.replace(STRAY_TOKEN_RE, "");
+
 const preventClickAction = (e) => e.preventDefault();
 // eslint-disable-next-line no-console
 const copyToClipboard = (text) => navigator.clipboard.writeText(text).catch((e) => console.error(e));
@@ -61,7 +68,7 @@ function App() {
   const [isRecording, setIsRecording] = useState(false);
   const [speechRecognition, setSpeechRecognition] = useState(null);
   const [customSystemMessage, setCustomSystemMessage] = useState(
-    "You are a helpful assistant. Keep responses as concise as possible. Avoid long explanations."
+    "You are a friendly, helpful assistant. Reply in a natural, conversational tone — short and to the point, no long explanations."
   );
   const [isMobile, setIsMobile] = useState(false);
   const [generatingSessionId, setGeneratingSessionId] = useState(null);
@@ -349,13 +356,14 @@ function App() {
     return {
       assistantId: assistantMessage.id,
       onNewToken: (token, piece, text) => {
+        const clean = stripStrayTokens(text);
         // Update the specific session
         setChatSessions((current) => {
           const session = current[sessionId];
           if (session) {
             const updatedMessages = [...session.messages];
             if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1]) {
-              updatedMessages[updatedMessages.length - 1].content = text;
+              updatedMessages[updatedMessages.length - 1].content = clean;
             }
             const updatedSession = {
               ...session,
@@ -373,7 +381,7 @@ function App() {
           if (sessionId === currentSessionIdRef.current) {
             const updatedMessages = [...current];
             if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1]) {
-              updatedMessages[updatedMessages.length - 1].content = text;
+              updatedMessages[updatedMessages.length - 1].content = clean;
             }
             return updatedMessages;
           }
@@ -983,8 +991,10 @@ function App() {
                     disabled={shouldDisableSubmit}
                     loading={isGenerating}
                     style={{
-                      backgroundColor: shouldDisableSubmit ? "var(--gray-a6)" : "var(--accent-9)",
+                      backgroundColor: isGenerating || !shouldDisableSubmit ? "var(--accent-9)" : "var(--gray-a6)",
                       color: "white",
+                      opacity: shouldDisableSubmit && !isGenerating ? 0.6 : 1,
+                      transition: "background-color 0.2s ease, opacity 0.2s ease",
                     }}
                   >
                     <ArrowRightIcon height="16" width="16" />

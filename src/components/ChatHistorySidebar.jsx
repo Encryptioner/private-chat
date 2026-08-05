@@ -58,6 +58,7 @@ function ChatHistorySidebar({
           style={{
             backgroundColor: "rgba(0,0,0,0.5)",
             zIndex: 999,
+            cursor: "pointer",
           }}
           onClick={onClose}
         />
