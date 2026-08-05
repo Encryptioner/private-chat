@@ -198,13 +198,30 @@ and ask again, the answer reflects `/contact`.
 
 ## Cross-page awareness via `site-index.json`
 
-By default the widget only knows the **current** page. For a **multi-page** site (docs, a
-landing + changelog + guide, …), generate a static `site-index.json` once and the chat gains
-**site-wide** awareness — a visitor on `/` can ask about `/changelog` and get a grounded answer
-**plus a link that takes them there**.
+**Without one** (the default, zero-config state): nothing breaks. `loadStaticSiteIndex()` gets a
+failed fetch (missing file or unset `siteIndexUrl`) and silently returns `[]`. The widget still
+grounds answers in the **live scrape of whatever page the visitor is currently on** — that scrape
+runs automatically on every load and re-runs on SPA navigation (see
+[Dynamic / SPA sites](#dynamic--spa-sites) above). What you lose is cross-page/cross-section
+recall: a visitor can't ask about content the current page's scrape didn't happen to capture.
 
-> Single-page SPAs (one route, all content) don't need this — the live scrape already covers them.
-> It pays off on sites with multiple real pages.
+**With one**: it is always merged with the live scrape, automatically, on every question — there
+is no toggle or mode switch. `ragEngine.js` runs both the live per-page scrape and a fetch of
+`siteIndexUrl` in parallel, then `combineIndexes()` merges them (live wins on URL collision,
+static fills in the rest). So adding `site-index.json` is strictly additive: it cannot make
+answers worse, only fill gaps the live scrape leaves.
+
+By default the widget only knows the **current** page's live-scraped content. For a **multi-page**
+site (docs, a landing + changelog + guide, …), generate a static `site-index.json` once and the
+chat gains **site-wide** awareness — a visitor on `/` can ask about `/changelog` and get a grounded
+answer **plus a link that takes them there**.
+
+> Single-page SPAs (one route, all content) don't strictly need this for page coverage — the live
+> scrape already sees everything **currently rendered**. It still pays off there for two reasons:
+> (1) it's embedded once and cached, so repeat visitors skip re-scraping cost, and (2) content that
+> a component only renders conditionally (an inactive tab, a collapsed accordion whose panel text
+> genuinely never mounts) won't appear in a live scrape either — a static crawl only captures it if
+> you make the crawler interact with that UI first (click the tab/expand the panel) before scraping.
 
 ### Generate it (one command, from the private-chat repo)
 
@@ -218,8 +235,24 @@ pnpm build:site-index -- --url https://yoursite.example/ [--depth 1] \
 ```
 
 - `--depth N` — follow same-**path-prefix** internal links (scoped to the start URL's directory,
-  so on shared origins like `github.io` it won't crawl sibling sites). Default 1.
+  so on shared origins like `github.io` it won't crawl sibling sites). Default 1. For a single-page
+  site, pass `--depth 0` — otherwise the crawler will follow every outbound link, including ones to
+  unrelated sibling projects on a shared origin.
 - `--pages a,b` — explicit page paths (relative to `--url`) instead of discovery.
+- `--min-words N` — drops chunks shorter than N words as nav-label noise. Default 10. **Check your
+  output for missing sections before trusting the default** — a site with compact content (short
+  accordion entries, brief cert/skill lists, one-line bios) can lose entire sections silently. A
+  chunk like `"Sololearn Multiple Technologies 2018 - 2024"` (6 words) is real content, not noise,
+  but the default threshold drops it. If a section you expect isn't in the output, re-run with
+  `--min-words 1` first to confirm the content was scraped at all, then pick a threshold between 1
+  and 10 that keeps it without re-admitting too much genuine nav noise.
+- `--expand` only helps content that's genuinely absent from the DOM until a click (accordions/
+  panels using `display:none` or the `hidden` attribute, "Show More" buttons). It does **not** help
+  content that's already in the DOM but filtered out by `--min-words`, and it does **not** make a
+  conditionally-rendered UI element (e.g. one tab of a multi-tab slider where only the active tab's
+  items ever mount) retroactively appear for other tab states — that needs either a custom
+  `getSections` that reads the underlying data directly, or a crawler change to interact with that
+  specific UI (click each tab) before scraping.
 - The crawler renders each page with Playwright (handles SPAs) and runs the **real** `src/lib/scraper.js`
   in-page — or the site's own `getSections` if it's deployed — so the index matches the live page.
 - Output is **chunks-only** (`{anchor,title,url,text}`). The widget embeds those chunks at runtime
