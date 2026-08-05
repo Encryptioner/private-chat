@@ -29,17 +29,8 @@ export default tseslint
   .concat({
     rules: {
       "no-console": ["error", { allow: ["debug"] }],
-      "prettier/prettier": [
-        "error",
-        {
-          endOfLine: "auto",
-          singleQuote: false,
-          trailingComma: "es5",
-          printWidth: 120,
-          ignoreComments: true,
-          jsxSingleQuote: false,
-          jsxBracketSameLine: true,
-        },
-      ],
+      // Options live in .prettierrc (single source of truth) — this rule just
+      // enforces them, so editor saves (prettier) and `eslint .` can't drift.
+      "prettier/prettier": "error",
     },
   });
