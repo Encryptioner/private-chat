@@ -243,6 +243,44 @@ pnpm build:site-index -- --url https://yoursite.example/ [--depth 1] \
 > changelog (3 pages, ~189 chunks), so the chat answers install/changelog/guideline questions from any
 > page and links to the right one.
 
+### Testing locally before deploying
+
+Run private-chat's dev server and point your site's embed script at it, instead of the
+deployed `encryptioner.github.io/private-chat/embed.js`, so you can verify grounding end-to-end
+before shipping either side.
+
+```bash
+# in the private-chat repo
+pnpm run dev        # builds embed.js once, then serves the app — usually http://localhost:5173
+# or, iterating on embed.ts/scraper.js:
+pnpm run dev:watch  # rebuilds embed.js on every save
+```
+
+On your site, temporarily swap the script `src` (and, if you set one, `PRIVATE_CHAT_CONFIG`
+stays as-is) to the printed local URL:
+
+```html
+<script id="aiChatEmbedScript" defer src="http://localhost:5173/embed.js"></script>
+```
+
+**Gotcha — different localhost ports are different origins.** In production, your site and the
+widget iframe are typically served from the same origin (e.g. both under `encryptioner.github.io`,
+just different paths), so the widget's `fetch("/site-index.json")` resolves relative to that
+shared origin and finds your file. In local dev, your site (e.g. `localhost:3000`) and
+private-chat's dev server (`localhost:5173`) are **different origins** — the same relative fetch
+resolves against `localhost:5173` instead, so it 404s and silently falls back to `[]` (no crash,
+no console error — just missing cross-page context, per the [Troubleshooting](#troubleshooting)
+table). For a full local test, copy your `site-index.json` into private-chat's `public/` directory
+so it's reachable at `localhost:5173/site-index.json` too:
+
+```bash
+cp /path/to/your-site/site-index.json private-chat/public/site-index.json
+```
+
+Then open your site, ask a question the current page doesn't show, and confirm you get a grounded
+answer with a "Related sections" link. Revert the script `src` override (and remove the copied
+file) before deploying — neither should ship.
+
 ### Alternative crawler — Python (Scrapling)
 
 A second, **equivalent** crawler exists for site owners who prefer Python, need to scrape a
