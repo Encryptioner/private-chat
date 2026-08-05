@@ -7,6 +7,36 @@
   <meta name="title" content="Local AI Chat - Offline-Capable Browser LLM Assistant">
   <meta name="description" content="Local In-Browser LLM inference for private, fast, and secure chat - no server required.">
   <meta name="keywords" content="local AI chat, offline AI assistant, browser LLM, in-browser inference, private AI chat, offline LLM, local language model">
+  <style>
+    /* ponytail: static skeleton so the widget paints instantly instead of a
+       blank #root while the JS bundle downloads/parses. React's createRoot
+       render() overwrites #root's children, so this needs no removal code. */
+    #root:empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: #fff;
+      color: #6b7280;
+      font: 14px system-ui, -apple-system, sans-serif;
+    }
+    #root:empty::after {
+      content: "";
+      width: 28px;
+      height: 28px;
+      border: 3px solid #e5e7eb;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: root-skeleton-spin 0.8s linear infinite;
+    }
+    @keyframes root-skeleton-spin {
+      to { transform: rotate(360deg); }
+    }
+    @media (prefers-color-scheme: dark) {
+      #root:empty { background: #111; color: #9ca3af; }
+      #root:empty::after { border-color: #374151; border-top-color: #3b82f6; }
+    }
+  </style>
   </head>
   <body>
     <div id="root"></div>
