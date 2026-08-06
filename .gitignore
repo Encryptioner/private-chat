@@ -38,8 +38,9 @@ public/models
 .vscode/*
 !.vscode/*.example.json
 
-# Playwright MCP browser snapshots (local testing artifacts)
+# Playwright
 .playwright-mcp/
+test-results
 
 # Internal spike results
 test-files/spike/

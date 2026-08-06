@@ -438,13 +438,18 @@ function App() {
       };
       setChatSessions(updatedSessions);
 
-      // Only save sessions that have messages
-      const sessionsToSave = Object.fromEntries(
-        Object.entries(updatedSessions).filter(([, session]) => session.messages.length > 0)
-      );
-      saveChatSessions(sessionsToSave, domainParam, isEmbedded ? "session" : "local");
+      // Skip the (expensive) JSON.stringify of every session on each streamed
+      // token; flush once when generation ends. In-memory chatSessions stays live
+      // so the UI keeps reflecting tokens mid-stream.
+      if (!isGenerating) {
+        // Only save sessions that have messages
+        const sessionsToSave = Object.fromEntries(
+          Object.entries(updatedSessions).filter(([, session]) => session.messages.length > 0)
+        );
+        saveChatSessions(sessionsToSave, domainParam, isEmbedded ? "session" : "local");
+      }
     }
-  }, [messages, currentSessionId]);
+  }, [messages, currentSessionId, isGenerating]);
 
   useEffect(() => {
     const handleResize = () => {

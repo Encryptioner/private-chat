@@ -24,7 +24,7 @@ This is a browser-based AI chat assistant that runs LLMs (Large Language Models)
 - `src/lib/embeddings.js`: Local vector index (its **own** Wllama embedder instance, not the chat singleton) + brute-force retrieval; IndexedDB-cached
 - `src/lib/scraper.js`: Host-page DOM → anchor-tagged chunks (iframe-aware: reads same-origin `window.parent.document`)
 - `src/lib/siteIndex.js` + `hostNav.js`: optional static `site-index.json` merge + SPA route re-scrape watcher
-- `src/lib/formatMessage.js`: Escapes + formats assistant output (XSS-hardened `dangerouslySetInnerHTML` path)
+- `src/components/Markdown.jsx`: Renders assistant output via react-markdown + remark-gfm (raw HTML escaped by default; no `dangerouslySetInnerHTML`)
 - `src/components/`: Reusable UI components (Dropdown, Footer, Loader, RelatedSections, etc.)
 - `download-model.cjs`: Post-install script to download default model
 

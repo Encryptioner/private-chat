@@ -34,7 +34,7 @@ vi.mock("../siteIndex.js", () => ({
   combineIndexes: vi.fn((live, statik) => [...(live || []), ...(statik || [])]),
 }));
 
-let buildGroundedContext, navigateToSection, isCurrentPageTarget, getCurrentIndexVersion;
+let buildGroundedContext, navigateToSection, isCurrentPageTarget, getCurrentIndexVersion, safeUrl;
 
 beforeEach(async () => {
   vi.resetModules();
@@ -44,7 +44,7 @@ beforeEach(async () => {
     { anchor: "pricing", title: "Pricing", url: "http://localhost/#pricing", text: "Pricing is $9." },
   ]);
   document.body.innerHTML = "";
-  ({ buildGroundedContext, navigateToSection, isCurrentPageTarget, getCurrentIndexVersion } = await import(
+  ({ buildGroundedContext, navigateToSection, isCurrentPageTarget, getCurrentIndexVersion, safeUrl } = await import(
     "../ragEngine.js"
   ));
 });
@@ -229,6 +229,24 @@ describe("isCurrentPageTarget (RelatedSections' new-tab affordance)", () => {
       },
     });
     expect(isCurrentPageTarget("http://localhost/#pricing")).toBe(false);
+  });
+});
+
+describe("safeUrl (trust-boundary scheme check for retrieval-source urls)", () => {
+  it("allows http/https, same-page fragment, and anchor-only", () => {
+    expect(safeUrl(undefined)).toBe(true); // anchor-only → same page
+    expect(safeUrl("")).toBe(true);
+    expect(safeUrl("#pricing")).toBe(true); // same-page fragment
+    expect(safeUrl("http://localhost/#pricing")).toBe(true);
+    expect(safeUrl("https://example.com/page")).toBe(true);
+  });
+
+  it("rejects script-executing and unparseable schemes", () => {
+    expect(safeUrl("javascript:alert(1)")).toBe(false);
+    expect(safeUrl("data:text/html,<script>")).toBe(false);
+    expect(safeUrl("vbscript:msgbox")).toBe(false);
+    expect(safeUrl("file:///etc/passwd")).toBe(false);
+    expect(safeUrl("not a url")).toBe(false);
   });
 });
 

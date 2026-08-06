@@ -199,6 +199,27 @@ export function isCurrentPageTarget(url) {
 }
 
 /**
+ * Trust-boundary check for a retrieval-source `url`. Sources can carry a url from
+ * untrusted origins (custom getSections, precomputed site-index.json, future UGC
+ * embeds); the default scraper only ever emits same-origin http(s) (scraper.buildUrl),
+ * so this is safe today — but we validate at the execution boundary (the href
+ * attribute and window.open) so a `javascript:`/`data:` scheme can never execute on
+ * click. Anchor-only / fragment / explicit http(s) pass; everything else is rejected.
+ * @param {string} [url]
+ * @returns {boolean}
+ */
+export function safeUrl(url) {
+  if (!url) return true; // anchor-only pointer → same page (no href risk)
+  const trimmed = String(url).trim();
+  if (!trimmed || trimmed[0] === "#") return true; // empty or same-page fragment
+  try {
+    return new URL(trimmed).protocol === "http:" || new URL(trimmed).protocol === "https:";
+  } catch {
+    return false; // unparseable or a disallowed scheme (javascript:, data:, …)
+  }
+}
+
+/**
  * Navigate the HOST (parent) page to a section.
  *   same-origin parent → smooth scroll + transient highlight when the link is
  *     part of the page currently being viewed; a DIFFERENT page (or domain)
@@ -212,6 +233,7 @@ export function isCurrentPageTarget(url) {
  */
 export function navigateToSection({ url, anchor } = {}) {
   if (!url && !anchor) return;
+  if (url && !safeUrl(url)) return; // untrusted scheme (javascript:/data:/…) — never window.open or postMessage it
 
   // Resolve the target. Three cases:
   //  - same-origin parent (real embed): scroll/nav the host directly.

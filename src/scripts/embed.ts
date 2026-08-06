@@ -42,7 +42,7 @@ type ChatSection = { anchor?: string; title?: string; url?: string; text: string
 // where the host DOM is always same-origin to itself, so scraping works on ANY
 // site (unlike the iframe, which can't read a cross-origin parent).
 import { scrapeCurrentPage } from '../lib/scraper.js';
-import { EMBED_SCRIPT_ID, EMBED_DIV_ID, EMBED_FLOATING_ID } from '../lib/constants.js';
+import { EMBED_SCRIPT_ID, EMBED_DIV_ID, EMBED_FLOATING_ID, STORAGE_KEYS, storageKey, hostSiteKey } from '../lib/constants.js';
 import { isGoodNetwork } from '../lib/network.js';
 
 const embedScriptId = EMBED_SCRIPT_ID;
@@ -222,16 +222,19 @@ class EmbedScript {
   }
 
   // Visitor opt-out of background preloading — their browser, their data/battery.
-  // Checked on the HOST origin (embed.ts runs here), so it's naturally per-site.
-  // The page-level key (origin+pathname) keeps sibling projects sharing one origin
-  // (e.g. several GitHub Pages repos) independent; the bare origin-level key is a
-  // convenient blanket opt-out. Either set to "true" in localStorage → skip model
+  // Checked on the HOST page (embed.ts runs here, so window.location is the host).
+  // Site-scoped, not per-page and not per-origin: on GitHub Pages several repos
+  // share one origin, so per-origin would mute unrelated repos and per-page
+  // (origin+pathname) would force a re-opt-out between /repo/guideline and
+  // /repo/changelog. hostSiteKey() = origin+repo there (the real site boundary),
+  // bare origin elsewhere. The bare `${STORAGE_PREFIX}:no-preload` is a convenient
+  // origin-wide blanket override. Either set to "true" in localStorage → skip model
   // preload AND don't forward preIndex (no background indexing either).
   private _userDisabledPreload(): boolean {
     try {
-      const pageKey = `private-chat:no-preload:${window.location.origin}${window.location.pathname}`;
-      if (localStorage.getItem(pageKey) === "true") return true;
-      if (localStorage.getItem("private-chat:no-preload") === "true") return true;
+      const optOut = STORAGE_KEYS.PRELOAD_OPT_OUT;
+      if (localStorage.getItem(storageKey(optOut, hostSiteKey())) === "true") return true; // site-scoped
+      if (localStorage.getItem(storageKey(optOut)) === "true") return true; // origin-wide blanket
     } catch {
       // localStorage unavailable (private mode / disabled) → respect the default.
     }

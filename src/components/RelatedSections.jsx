@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import { Box, Flex, Link, Text } from "@radix-ui/themes";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
-import { navigateToSection, isCurrentPageTarget } from "../lib/ragEngine.js";
+import { navigateToSection, isCurrentPageTarget, safeUrl } from "../lib/ragEngine.js";
 
 // Renders up to N "Related sections" links from the assistant message's
 // retrieval sources (spec FR-5). Links come from retrieval, NOT model markers.
@@ -16,7 +16,10 @@ import { navigateToSection, isCurrentPageTarget } from "../lib/ragEngine.js";
 const MAX_LINKS = 3;
 
 function RelatedSections({ sources = [] }) {
-  const links = sources.slice(0, MAX_LINKS);
+  // Drop sources whose url is an unsafe scheme (javascript:/data:/…) before
+  // rendering — they can reach here from untrusted custom getSections or a
+  // precomputed site-index.json. The default scraper only emits http(s).
+  const links = sources.filter((s) => safeUrl(s.url)).slice(0, MAX_LINKS);
   if (links.length === 0) return null;
 
   const handleClick = (pointer) => (e) => {

@@ -160,13 +160,25 @@ export async function retrieveRelevant(question, vectors, topK = RAG.TOP_K, { mi
   try {
     const qVec = await embedText(RAG.QUERY_PREFIX + question);
     const scored = [];
+    let skippedDimMismatch = 0;
     for (const v of vectors) {
-      let dot = 0;
       const vv = v.vec;
+      // Skip a dim-mismatched vec (e.g. a precomputed static-index vec from a
+      // different embedder) instead of letting the dot product read undefined →
+      // NaN, which would silently drop it — and, if every static vec mismatches,
+      // the whole static cross-page index — with no signal.
+      if (!vv || vv.length !== qVec.length) {
+        skippedDimMismatch++;
+        continue;
+      }
+      let dot = 0;
       for (let i = 0; i < qVec.length; i++) dot += qVec[i] * vv[i];
       if (dot >= minScore) {
         scored.push({ anchor: v.anchor, title: v.title, url: v.url, text: v.text, score: dot });
       }
+    }
+    if (skippedDimMismatch) {
+      console.debug("[RAG] skipped", skippedDimMismatch, "dim-mismatched vec(s) during retrieval");
     }
     scored.sort((a, b) => b.score - a.score);
     // Dedup near-identical chunks (same page content repeated across sections,

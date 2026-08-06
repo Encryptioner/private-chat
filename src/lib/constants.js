@@ -93,6 +93,45 @@ export const EMBED_SCRIPT_ID = "aiChatEmbedScript";
 export const EMBED_DIV_ID = "ai-chat-embed-div";
 export const EMBED_FLOATING_ID = "ai-chat-floating-widget";
 
+// localStorage namespace for embed.ts (host context). One prefix → every key is
+// derived, no scattered "private-chat:" storage literals. (postMessage `type`
+// fields like "private-chat:sections" are a separate cross-frame protocol, not
+// storage — they stay inline.)
+export const STORAGE_PREFIX = "private-chat";
+
+// Key-name suffixes appended to STORAGE_PREFIX (":"-joined). Add a new key here,
+// build it via storageKey() — never hand-write a "private-chat:..." literal.
+export const STORAGE_KEYS = {
+  PRELOAD_OPT_OUT: "no-preload", // site-scoped (origin+repo) OR bare-origin blanket
+};
+
+/**
+ * Builds a scoped localStorage key: `${STORAGE_PREFIX}:${name}`, with an optional
+ * trailing scope segment (e.g. hostSiteKey()) → `${PREFIX}:${name}:${scope}`.
+ * Use for every read/write so the prefix + shape live in one place.
+ */
+export function storageKey(name, scope) {
+  return scope ? `${STORAGE_PREFIX}:${name}:${scope}` : `${STORAGE_PREFIX}:${name}`;
+}
+
+/**
+ * The "site" the widget is embedded on — the right granularity for per-site
+ * localStorage (e.g. the preload opt-out). GitHub Pages hosts MANY independent
+ * repos under ONE origin (encryptioner.github.io), so origin alone is too coarse
+ * (an opt-out muting unrelated repos) and origin + full pathname is too fine
+ * (/repo/guideline ≠ /repo/changelog). The repo = the first path segment = the
+ * real site boundary there; custom domains and localhost have nothing below the
+ * origin, so origin alone is the site. embed.ts runs HOST-side, so window.location
+ * is always the host page (never the iframe) — no referrer/scraper heuristics
+ * needed.
+ */
+export function hostSiteKey() {
+  const { origin, hostname, pathname } = window.location;
+  const firstSeg = pathname.split("/").filter(Boolean)[0];
+  if (hostname.endsWith(".github.io") && firstSeg) return `${origin}/${firstSeg}`;
+  return origin;
+}
+
 // --- RAG (site-aware retrieval) tunables ---
 // Local dev serves the embedder GGUF same-origin (COEP-safe); prod streams it
 // from the HF CDN (CORS *, no COEP on GitHub Pages). Mirrors the LFM2 host
