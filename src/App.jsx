@@ -3,8 +3,16 @@
  * This was done to focus on more on demonstration of the concept. Its is wise and welcome to refactor
  * the code to suit your needs.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import { CHAT_ROLE as ROLE, formatChat, getWllamaInstance, PRESET_MODELS, WllamaAbortError } from "./lib/wllama";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  CHAT_ROLE as ROLE,
+  formatChat,
+  getWllamaInstance,
+  resolveDefaultModel,
+  PRESET_MODELS,
+  WllamaAbortError,
+} from "./lib/wllama";
+import { shouldPreIndex } from "./lib/preIndex";
 import { loadChatSessions, saveChatSessions, createNewSession, updateSession, deleteSession } from "./lib/chatStorage";
 import { trackEvent, sanitizeError, getEmbedHost } from "./lib/googleAnalytics";
 import { buildGroundedContext, getCurrentIndexVersion, initPageIndex, hasIndex } from "./lib/ragEngine.js";
@@ -72,7 +80,31 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [messages, setMessages] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [{ isLoading, isReady, modelId, loadingProgress }, setModelState] = useState(modelStateDefaults);
+  // Resolve PRIVATE_CHAT_CONFIG.defaultModel once at init so the very first
+  // loadModel() pulls the site owner's chosen preset. Accepts an exact id OR a
+  // fuzzy/partial name (e.g. "qwen", "gemma 3"). Invalid → built-in default +
+  // console warning; ambiguous (multiple matches) → smallest preset + warning
+  // listing candidates so the owner can pin the exact id.
+  const [{ isLoading, isReady, modelId, loadingProgress }, setModelState] = useState(() => {
+    const requested = new URLSearchParams(window.location.search).get("defaultModel");
+    const { name, ambiguous, candidates } = resolveDefaultModel(requested);
+    if (requested && !name) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[private-chat] unknown defaultModel "${requested}" — falling back to built-in default. ` +
+          `Valid ids: ${Object.values(PRESET_MODELS)
+            .map((m) => m.id)
+            .join(", ")}`
+      );
+    } else if (ambiguous) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[private-chat] defaultModel "${requested}" matched several presets — picked the smallest ` +
+          `(${name}). Disambiguate with one of: ${candidates.join(", ")}`
+      );
+    }
+    return { ...modelStateDefaults, modelId: name || DEFAULT_MODEL_ID };
+  });
   const [isReadingAloud, setIsReadingAloud] = useState(false);
   const [localModelFiles, setLocalModelFiles] = useState([]);
   const [chatSessions, setChatSessions] = useState({});
@@ -102,6 +134,20 @@ function App() {
   const externalModeRef = useRef(false);
   const hostNavUninstallRef = useRef(null);
   const promptBeforeRecordingRef = useRef("");
+  // PRIVATE_CHAT_CONFIG.preIndex ("on-open" | "after-model" | <seconds>), forwarded
+  // by embed.ts. null = index on first question (current default). Set once in the
+  // mount effect. Number = delay-then-index (timer-driven, see numeric effect).
+  const preIndexRef = useRef(null);
+  // isReady mirror for refs-only readers (maybePreIndex's after-model check reads
+  // this from a mount-effect closure that would otherwise capture stale state).
+  const isReadyRef = useRef(false);
+  // Set when the numeric preIndex delay elapses (number mode only). maybePreIndex
+  // gates on it via shouldPreIndex so a number-mode build only fires post-timer.
+  const numericPreIndexFiredRef = useRef(false);
+  // Last status key posted to the host (phase+progress), to throttle the bridge:
+  // wllama's progressCallback fires per chunk, but we only postMessage when the
+  // integer percent or phase actually changes.
+  const lastStatusKeyRef = useRef("");
   const [domainParam, setDomainParam] = useState(null);
   const selectedModel = localModelFiles.length
     ? { name: localModelFiles[0].name, url: "file", license: "" }
@@ -173,6 +219,33 @@ function App() {
     }
   };
 
+  // preIndex warming (PRIVATE_CHAT_CONFIG.preIndex). Builds the RAG index ahead
+  // of the first question so the first grounded answer is instant. No-op unless
+  // the site owner opted in. initPageIndex is in-flight-deduped (ragEngine), so a
+  // concurrent first-question call reuses this build instead of re-embedding.
+  // 'on-open' fires at mount (or whenever host sections arrive); 'after-model'
+  // waits for the chat model to be ready. True background warming (before the
+  // visitor opens the chat) only happens when `preloadModel` also pre-mounted the
+  // iframe — otherwise this runs when the chat opens.
+  const maybePreIndex = useCallback(() => {
+    const mode = preIndexRef.current;
+    const sections = externalSectionsRef.current;
+    if (!shouldPreIndex(mode, !!sections, isReadyRef.current, numericPreIndexFiredRef.current)) return;
+    setIsIndexing(true);
+    initPageIndex(sections, siteIndexUrlRef.current).finally(() => setIsIndexing(false));
+  }, []);
+
+  useEffect(
+    function syncReadyAndPreIndex() {
+      // Mirror isReady into a ref so maybePreIndex (read from a mount-effect
+      // closure) sees the current value, then drive 'after-model' pre-indexing
+      // when the chat model finishes loading (covers sections-arrived-before-ready).
+      isReadyRef.current = isReady;
+      if (isReady) maybePreIndex();
+    },
+    [isReady, maybePreIndex]
+  );
+
   useEffect(
     function scrollChatToBottom() {
       const timeout = setTimeout(() => {
@@ -196,6 +269,7 @@ function App() {
     const siteIndexUrlParam = urlParams.get("siteIndexUrl");
     const personaParam = urlParams.get("persona");
     const modelUrlParam = urlParams.get("modelUrl");
+    const preIndexParam = urlParams.get("preIndex");
 
     // eslint-disable-next-line no-console
     console.log({
@@ -232,6 +306,7 @@ function App() {
     if (siteIndexUrlParam) siteIndexUrlRef.current = decodeURIComponent(siteIndexUrlParam);
     if (personaParam) personaRef.current = decodeURIComponent(personaParam); // wins over `system` above if both set
     if (modelUrlParam) modelUrlRef.current = decodeURIComponent(modelUrlParam);
+    if (preIndexParam === "on-open" || preIndexParam === "after-model") preIndexRef.current = preIndexParam;
 
     const sessions = loadChatSessions(domainParam, embeddedParam === "true" ? "session" : "local");
     setChatSessions(sessions);
@@ -262,6 +337,9 @@ function App() {
         const data = event.data;
         if (!data || data.type !== "private-chat:sections") return;
         externalSectionsRef.current = data.sections || null;
+        // Warm the index early if the site owner opted into preIndex (no-op
+        // otherwise — the default first-question path runs in submitPrompt).
+        maybePreIndex();
         if (!externalModeRef.current) {
           // embed.ts now owns re-scrape; stop the iframe-side watcher (double-work).
           externalModeRef.current = true;
@@ -298,6 +376,54 @@ function App() {
       };
     }
   }, []);
+
+  // numeric preIndex delay (preIndex = seconds). Counts FROM model-ready (not
+  // mount) so the index build never competes with the model download. When the
+  // model is ready, wait N more seconds, then hand off to maybePreIndex — which
+  // also gates on sections being present, so a fire before sections arrive is
+  // picked up when sections land. Placed after the mount effect so preIndexRef is
+  // already populated on first commit.
+  useEffect(
+    function numericPreIndexTimer() {
+      const delay = preIndexRef.current;
+      if (typeof delay !== "number" || delay < 0 || !isReady) return;
+      const timer = setTimeout(() => {
+        numericPreIndexFiredRef.current = true;
+        maybePreIndex();
+      }, delay * 1000);
+      return () => clearTimeout(timer);
+    },
+    [isReady, maybePreIndex]
+  );
+
+  // Status bridge → host (embed.ts) so the floating button can show a preload
+  // badge + hover tooltip. Embed mode only. One derived phase: loading-model
+  // (with integer %) takes precedence over indexing; ready clears it. Throttled
+  // via lastStatusKeyRef so the per-chunk progressCallback doesn't flood the host.
+  useEffect(
+    function postStatusToHost() {
+      if (!isEmbedded) return;
+      let phase = "ready";
+      let progress;
+      if (isLoading) {
+        phase = "loading-model";
+        const total = loadingProgress?.total || 0;
+        const loaded = loadingProgress?.loaded || 0;
+        if (total > 0) progress = Math.min(100, Math.floor((loaded / total) * 100));
+      } else if (isIndexing) {
+        phase = "indexing";
+      }
+      const key = `${phase}:${progress ?? ""}`;
+      if (key === lastStatusKeyRef.current) return;
+      lastStatusKeyRef.current = key;
+      try {
+        window.parent.postMessage({ type: "private-chat:status", phase, progress }, "*");
+      } catch {
+        /* no parent (standalone) — ignore */
+      }
+    },
+    [isEmbedded, isLoading, isIndexing, loadingProgress]
+  );
 
   useEffect(() => {
     currentSessionIdRef.current = currentSessionId;
@@ -763,7 +889,16 @@ function App() {
   const loadedSize = loadingProgress.loaded || 0;
   const totalSize = loadingProgress.total || 100;
   const loadingProgressDisplayString = `${(Math.floor((loadedSize / totalSize) * 10000) / 100).toFixed(2)}%`;
-  const modelSizeDisplayString = totalSize ? `(${Math.ceil(totalSize / 1024 / 1024)}MB)` : "";
+  // Preset models advertise a fixed sizeMb (single source of truth — matches the
+  // dropdown label exactly, so the load progress never disagrees with the name
+  // the way the old Math.ceil(realBytes) did: label said 278MB, download showed
+  // 279MB). Custom-URL / uploaded models have no preset size → fall back to live
+  // bytes from wllama's progress callback.
+  const modelSizeDisplayString = selectedModel.sizeMb
+    ? `(${selectedModel.sizeMb}MB)`
+    : totalSize
+      ? `(${Math.ceil(totalSize / 1024 / 1024)}MB)`
+      : "";
 
   return (
     <>

@@ -72,6 +72,9 @@ Set this **before** the script tag. All fields are optional.
     siteIndexUrl: "site-index.json", // optional — override where the cross-page index lives
     persona: "You are Aria, the friendly assistant for Acme Labs.", // optional — customize the assistant's voice
     modelUrl: null,                // optional — load your own GGUF instead of the built-in default
+    defaultModel: null,            // optional — pick a built-in preset by id, e.g. "qwen3-0.6b"
+    preloadModel: null,            // optional — seconds to wait, then background-download the model
+    preIndex: null,                // optional — "on-open" | "after-model": warm the search index early
     getSections: null              // optional custom scraper (see below)
   };
 </script>
@@ -85,6 +88,9 @@ Set this **before** the script tag. All fields are optional.
 | `siteIndexUrl` | `string` | Path or URL to a pre-built static index (`site-index.json`) for cross-page awareness. **Default (omit this field): `site-index.json` right next to the host page.** Missing file = ignored. Resolved against the **host page's own location** (embed.ts does this before forwarding it to the iframe) — see [the shared-origin gotcha](#gotcha-siteindexurl-on-a-shared-origin) below before setting this to anything with a leading `/`. Generate the file with the bundled crawler (Node or Python) — see [Cross-page awareness](#cross-page-awareness-via-site-indexjson) below. |
 | `persona` | `string` | Replaces just the assistant's opening identity line (default: *"You are a friendly assistant chatting with a visitor on this website."*). The rest of the grounding instructions (answer length, no verbatim copying, etc.) always apply — this only changes voice/tone, not behavior. Keep it to one sentence — see the note below. |
 | `modelUrl` | `string` | URL to a GGUF file to load instead of the built-in default model — any public preset, or one you trained/fine-tuned yourself. Must be hosted with CORS enabled (HF Spaces, R2, GitHub raw, S3 with a CORS policy, etc.). See [`docs/CUSTOM-MODEL-TRAINING.md`](CUSTOM-MODEL-TRAINING.md). |
+| `defaultModel` | `string` | Preset to load instead of the built-in default. Accepts an exact **id** (`qwen3-0.6b`) **or a fuzzy/partial name** (`"qwen"`, `"gemma 3"`, `"smol"`) — matched case-insensitively against id and label. One of: `gemma3-270m` (default), `gemma3-1b`, `llama3.2-1b`, `qwen3-0.6b`, `smollm2-360m`. Bigger = smarter but a larger download; smaller = faster first load. An ambiguous match (e.g. `"gemma"` → 270M + 1B) picks the **smallest** and logs the candidates so you can pin the exact id; an unknown value falls back to the built-in default + a console warning. Use `modelUrl` instead for a model you host yourself. |
+| `preloadModel` | `number` | Seconds to wait after the widget initializes, then **background-download** the chat model so it's ready the instant the visitor opens the chat. Only fires on a confirmed fast/unmetered connection (Network Information API — wifi/fast 4g, no data-saver); on mobile data, slow connections, or Safari (no API) it's skipped and the model loads when the chat opens as usual. `0` = start immediately. Omit = current behavior (load when the chat opens). Floating widget only — inline-div embeds already load on page load. See [Performance tuning](#performance-tuning-preloadmodel--preindex) below. |
+| `preIndex` | `string` \| `number` | When to **build the search index** (embeds the page so the first grounded answer is instant): `"on-open"` (when the chat opens — ignores the chat model), `"after-model"` (once the chat model is ready — fires immediately if the model is **cached**, no re-download), or a **number** = seconds to wait *after the model is ready* before indexing (keeps the index build from competing with a fresh model download). Omit = build on the first question (current default). True *background* warming — before the visitor opens the chat — only happens when `preloadModel` is also set; otherwise it runs when the chat opens. A first question that lands mid-build reuses it (never re-indexes twice). See [Performance tuning](#performance-tuning-preloadmodel--preindex) below. |
 | `getSections` | `function` | Your own scraper. See below. |
 
 **No config** → the widget live-scrapes the current page and grounds answers in it, and (as of the default above) also checks for a `site-index.json` next to the current page automatically.
@@ -96,6 +102,75 @@ Set this **before** the script tag. All fields are optional.
 > `modelUrl` pointing at a long signed/presigned URL (S3, R2 auth query strings routinely run
 > 500–1500+ chars) eats into that budget fast. `embed.ts` logs a console warning if the built
 > iframe URL exceeds 4000 characters as an early signal.
+
+## Performance tuning — `preloadModel` + `preIndex`
+
+By default the widget is polite about bandwidth: the chat model (~278MB) downloads **when the visitor opens the chat**, and the search index builds **on the first question**. Nothing is fetched for a visitor who never opens the chat. The two fields below are opt-in overrides for sites where you'd rather trade a little background bandwidth for an instant-first-answer experience.
+
+**Both background features are network-gated.** They only run when the browser reports a fast, unmetered connection (wifi / fast 4g, data-saver off). On mobile data, slow connections, or browsers without the Network Information API (Safari/iOS), they're skipped automatically and the widget falls back to the default load-on-open / index-on-first-question behavior. You never strand a mobile user with a surprise 278MB download.
+
+### Which should I set?
+
+| Your site | `defaultModel` | `preloadModel` | `preIndex` |
+|-----------|----------------|----------------|------------|
+| Blog / docs, mostly mobile visitors | omit (270M is fastest) | omit | omit |
+| Product/marketing site, want a smarter assistant | `gemma3-1b` | omit | omit |
+| Desktop-first SaaS, want instant-open chat | omit | `5` | `"on-open"` |
+| "Best experience, bandwidth is fine" | `gemma3-1b` | `3` | `"after-model"` |
+
+### Recipes
+
+**Smarter default, nothing preloaded** (mobile-friendly):
+```html
+<script>
+  window.PRIVATE_CHAT_CONFIG = { defaultModel: "qwen3-0.6b" };
+</script>
+```
+
+**Instant-open chat on good connections** (desktop-first; mobile users still get load-on-open):
+```html
+<script>
+  window.PRIVATE_CHAT_CONFIG = { preloadModel: 5, preIndex: "on-open" };
+</script>
+```
+
+**Fully warmed** (background model + index; only fires on wifi/fast 4g):
+```html
+<script>
+  window.PRIVATE_CHAT_CONFIG = {
+    defaultModel: "gemma3-1b",
+    preloadModel: 3,
+    preIndex: "after-model",
+  };
+</script>
+```
+
+### How preloading behaves when the visitor opens mid-download
+
+`preloadModel` mounts the chat iframe early but hidden; opening the chat just reveals it. So if the model is 50% downloaded when the visitor opens, they **see 50% and it continues to 100%** — it never restarts. Same for `preIndex`: a first question that lands while the index is building reuses the in-flight build instead of indexing twice.
+
+### Preload badge (automatic)
+
+While a background preload or index is in progress and the chat is closed, the floating chat button shows a small pulsing dot; hovering it reveals what's loading (`Loading AI model · 47%` or `Indexing this page…`). The dot disappears the moment the chat opens — the in-chat loader then takes over, so the two never compete for attention. Nothing to configure; it appears only when `preloadModel`/`preIndex` actually have work to do.
+
+### Visitor opt-out of background preloading
+
+Background preloading is the visitor's bandwidth and battery, so they always get the final say. A visitor can disable it for your site by setting a flag in `localStorage` (on your page) and reloading:
+
+```js
+// Opt out for THIS page only (use this when several sites share one origin,
+// e.g. sibling GitHub Pages projects — each is controlled independently):
+localStorage["private-chat:no-preload:" + location.origin + location.pathname] = "true";
+
+// …or opt out for the whole origin (simpler, blanket):
+localStorage["private-chat:no-preload"] = "true";
+
+// To re-enable, delete the key (or set it to "false").
+```
+
+When set, the widget skips `preloadModel` **and** withholds `preIndex` — the model loads when the chat opens and the index builds on the first question (the polite default). You can surface this yourself by exposing a small "Data saver" toggle in your UI that writes the key above.
+
+> **Built-in preset ids:** `gemma3-270m` (default, 278MB), `smollm2-360m` (258MB), `qwen3-0.6b` (378MB), `gemma3-1b` (769MB), `llama3.2-1b` (770MB). The size in parentheses is the one-time download (cached afterwards). Pick the smallest model that answers well enough for your content.
 
 ---
 

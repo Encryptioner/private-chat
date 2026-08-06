@@ -15,6 +15,12 @@ import { RAG } from "./constants.js";
 
 let currentIndex = null; // [{vec, anchor, title, url, text}, ...] live + static merge
 let currentIndexVersion = ""; // contentHash; bumped on every initPageIndex (race guard, grill Maj3)
+// In-flight initPageIndex memo: a background pre-index (preIndex) and the
+// visitor's first question can both call initPageIndex before the build
+// finishes — without dedup they'd load the embedder + embed twice. Concurrent
+// callers await the SAME promise. Cleared on completion, so a later call with
+// changed content (SPA nav) still rebuilds fresh.
+let initPromise = null;
 
 /**
  * Builds the live page index from sections, embeds them, and merges the optional
@@ -32,17 +38,30 @@ let currentIndexVersion = ""; // contentHash; bumped on every initPageIndex (rac
  * @returns {Promise<number>} chunk count
  */
 export async function initPageIndex(externalSections, siteIndexUrl) {
-  const sections =
-    Array.isArray(externalSections) && externalSections.length > 0 ? externalSections : scrapeCurrentPage();
-  const chunks = chunkSections(sections, { maxWords: RAG.CHUNK_MAX_WORDS });
-  const live = await buildIndex(chunks); // {vectors, version}; cache hit = no model load
-  currentIndexVersion = live.version;
-  // Cross-page awareness: load the static site-index.json, embed any vec-less
-  // chunks with our own embedder (cached by content hash), merge (live wins).
-  const staticRaw = await loadStaticSiteIndex(siteIndexUrl);
-  const staticVec = await embedStaticChunks(staticRaw);
-  currentIndex = combineIndexes(live.vectors, staticVec);
-  return currentIndex.length;
+  // Reuse an in-flight build (see initPromise comment) — collapses the
+  // preIndex + first-question race into one embed pass. Args are intentionally
+  // ignored on the dedup path: concurrent callers are on the same page with the
+  // same sections; a genuinely-different set arrives later (after completion).
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    try {
+      const sections =
+        Array.isArray(externalSections) && externalSections.length > 0 ? externalSections : scrapeCurrentPage();
+      const chunks = chunkSections(sections, { maxWords: RAG.CHUNK_MAX_WORDS });
+      const live = await buildIndex(chunks); // {vectors, version}; cache hit = no model load
+      currentIndexVersion = live.version;
+      // Cross-page awareness: load the static site-index.json, embed any vec-less
+      // chunks with our own embedder (cached by content hash), merge (live wins).
+      const staticRaw = await loadStaticSiteIndex(siteIndexUrl);
+      const staticVec = await embedStaticChunks(staticRaw);
+      currentIndex = combineIndexes(live.vectors, staticVec);
+      return currentIndex.length;
+    } finally {
+      initPromise = null;
+    }
+  })();
+  return initPromise;
 }
 
 /** Live index version (contentHash). Caller compares to a captured per-turn

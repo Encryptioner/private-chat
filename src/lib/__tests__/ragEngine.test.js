@@ -231,3 +231,32 @@ describe("isCurrentPageTarget (RelatedSections' new-tab affordance)", () => {
     expect(isCurrentPageTarget("http://localhost/#pricing")).toBe(false);
   });
 });
+
+describe("initPageIndex in-flight dedup (preIndex + first-question race)", () => {
+  it("concurrent calls share ONE build — buildIndex runs once, never twice", async () => {
+    const { initPageIndex } = await import("../ragEngine.js");
+    const { buildIndex } = await import("../embeddings.js");
+
+    // Hold the first build open so a second call lands while it's in flight.
+    // mockClear first: buildIndex is a shared mock whose call count carried over
+    // from earlier suites' buildGroundedContext calls.
+    buildIndex.mockClear();
+    let resolveBuild;
+    buildIndex.mockImplementationOnce(() => new Promise((resolve) => (resolveBuild = resolve)));
+
+    const sections = [{ anchor: "a", title: "A", url: "http://localhost/#a", text: "hello world" }];
+    // Fire two builds before the first resolves — exactly the preIndex background
+    // build vs. the visitor's first question overlapping.
+    const p1 = initPageIndex(sections);
+    const p2 = initPageIndex(sections);
+    expect(buildIndex).toHaveBeenCalledTimes(1); // deduped — NOT 2
+
+    resolveBuild({ vectors: [], version: "v-hash-1" });
+    await Promise.all([p1, p2]);
+
+    // A later, NON-overlapping call rebuilds — dedup only collapses concurrent calls,
+    // so a genuine SPA-nav content change still re-indexes.
+    await initPageIndex(sections);
+    expect(buildIndex).toHaveBeenCalledTimes(2);
+  });
+});

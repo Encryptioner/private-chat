@@ -15,16 +15,27 @@ export const CHAT_ROLE = Object.freeze({
   user: "user",
 });
 
-// Names match how each model is known on HuggingFace (searchable), with actual
-// quantized .gguf download size appended — param count alone doesn't tell you
-// download cost since that depends on quantization (Q4_K_M vs Q8_0, etc).
-const models = {
-  "Gemma 3 1B (769MB)": {
+// Each preset carries a stable `id` (the public handle for
+// PRIVATE_CHAT_CONFIG.defaultModel), a `label` (model family + param count, no
+// byte suffix), and `sizeMb` — the ONE source of truth for the model's download
+// size. The dropdown name AND the load-progress display both derive from
+// `sizeMb`, so they can never disagree (the old hand-typed "(278MB)" in the key
+// showed 279 during download because the live Math.ceil(realBytes) rounded the
+// ~278.4MB file up). Advertised sizes are the round number; user-uploaded /
+// custom-URL models have no preset size and fall back to live bytes at runtime.
+const models = [
+  {
+    id: "gemma3-1b",
+    label: "Gemma 3 1B",
+    sizeMb: 769,
     url: "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
     license: "https://deepmind.google/models/gemma/gemma-3",
     description: "Gemma is a lightweight, family of models from Google built on Gemini technology.",
   },
-  "Llama 3.2 1B (770MB)": {
+  {
+    id: "llama3.2-1b",
+    label: "Llama 3.2 1B",
+    sizeMb: 770,
     url: "https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
     license: "https://raw.githubusercontent.com/meta-llama/llama-models/refs/heads/main/models/llama3_2/LICENSE",
     description: "Meta's Llama 3.2 goes small with this 1B model",
@@ -33,33 +44,87 @@ const models = {
   // (~1.08GB) exceeds the WASM linear-memory budget and never loaded in this
   // runtime (see test-files/spike/RESULT.md #3). Only dense transformer
   // architectures (Gemma/Llama/Qwen) are known to load here.
-  "Qwen3 0.6B (378MB)": {
+  {
+    id: "qwen3-0.6b",
+    label: "Qwen3 0.6B",
+    sizeMb: 378,
     url: "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf",
     license: "https://qwenlm.github.io/",
     description: "Qwen3 is the latest generation of large language models in Qwen series",
   },
-  "SmolLM2 360M (258MB)": {
+  {
+    id: "smollm2-360m",
+    label: "SmolLM2 360M",
+    sizeMb: 258,
     url: "https://huggingface.co/unsloth/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf",
     license: "https://huggingface.co/HuggingFaceTB/SmolLM2-360M#license",
     description: "SmolLM2 is a family of compact language models by Hugging Face",
   },
-  "Gemma 3 270M (278MB)": {
+  {
+    id: "gemma3-270m",
+    label: "Gemma 3 270M",
+    sizeMb: 278,
     url: "https://huggingface.co/unsloth/gemma-3-270m-it-GGUF/resolve/main/gemma-3-270m-it-Q8_0.gguf",
     license: "https://deepmind.google/models/gemma/gemma-3",
     description: "Gemma is a lightweight, family of models from Google built on Gemini technology.",
     default: true,
   },
+];
+
+// Keyed by the composed display name (backward compat with App.jsx, which uses
+// `name` as the model id and keys the dropdown by it). Each entry carries the
+// stable `id` + `sizeMb` alongside the usual fields.
+export const PRESET_MODELS = Object.fromEntries(
+  models.map((m) => {
+    const name = `${m.label} (${m.sizeMb}MB)`;
+    return [name, { ...m, name }];
+  })
+);
+
+/**
+ * Resolves a stable preset `id` (PRIVATE_CHAT_CONFIG.defaultModel, e.g.
+ * "qwen3-0.6b") to its display name. Returns undefined for an unknown/missing
+ * id — caller falls back to the built-in default. Display names are NOT a
+ * stable API (the size suffix can change); ids are.
+ * @param {string} [id]
+ * @returns {string|undefined}
+ */
+export const getPresetNameById = (id) => {
+  if (!id) return undefined;
+  const model = models.find((m) => m.id === id);
+  return model ? `${model.label} (${model.sizeMb}MB)` : undefined;
 };
 
-export const PRESET_MODELS = Object.fromEntries(
-  Object.entries(models).map(([name, rest]) => [
-    name,
-    {
-      name,
-      ...rest,
-    },
-  ])
-);
+const nameFor = (m) => `${m.label} (${m.sizeMb}MB)`;
+
+/**
+ * Resolves PRIVATE_CHAT_CONFIG.defaultModel, accepting either a stable preset
+ * `id` ("qwen3-0.6b") OR a fuzzy/partial name — a case-insensitive substring of
+ * the id or label ("qwen", "gemma 3", "smol"). Site owners think in model
+ * families, not exact ids.
+ *
+ * @param {string} [input]
+ * @returns {{name?: string, ambiguous: boolean, candidates: string[]}}
+ *   name = the display name to load (undefined if nothing matched → caller falls
+ *   back). ambiguous = true when multiple presets matched and the smallest was
+ *   chosen; candidates lists their ids so the owner can disambiguate.
+ */
+export const resolveDefaultModel = (input) => {
+  if (!input) return { name: undefined, ambiguous: false, candidates: [] };
+  const exact = getPresetNameById(input);
+  if (exact) return { name: exact, ambiguous: false, candidates: [] };
+
+  const needle = String(input).toLowerCase();
+  const matches = models.filter((m) => m.id.toLowerCase().includes(needle) || m.label.toLowerCase().includes(needle));
+  if (matches.length === 1) return { name: nameFor(matches[0]), ambiguous: false, candidates: [] };
+  if (matches.length > 1) {
+    // Ambiguous (e.g. "gemma" → 270m + 1b): pick the SMALLEST so the default is
+    // conservative, and surface every candidate so the owner can pin the exact id.
+    const sorted = [...matches].sort((a, b) => a.sizeMb - b.sizeMb);
+    return { name: nameFor(sorted[0]), ambiguous: true, candidates: sorted.map((m) => m.id) };
+  }
+  return { name: undefined, ambiguous: false, candidates: [] };
+};
 
 export const formatChat = async (wllamaInstance, messages) => {
   // Check if wllamaInstance is valid
