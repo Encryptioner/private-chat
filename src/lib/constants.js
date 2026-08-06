@@ -93,6 +93,11 @@ export const EMBED_SCRIPT_ID = "aiChatEmbedScript";
 export const EMBED_DIV_ID = "ai-chat-embed-div";
 export const EMBED_FLOATING_ID = "ai-chat-floating-widget";
 
+// Placeholder shown in an assistant message while its first token is pending,
+// AND the blank-reply sentinel checked in the generation path. Shared so the
+// render (MessageItem) and the logic (App stream/guard) can't drift apart.
+export const ELLIPSIS = "...";
+
 // localStorage namespace for embed.ts (host context). One prefix → every key is
 // derived, no scattered "private-chat:" storage literals. (postMessage `type`
 // fields like "private-chat:sections" are a separate cross-frame protocol, not

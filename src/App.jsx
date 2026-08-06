@@ -1,8 +1,3 @@
-/**
- * The approach used in this code is to consolidate all the logic in a single component.
- * This was done to focus on more on demonstration of the concept. Its is wise and welcome to refactor
- * the code to suit your needs.
- */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CHAT_ROLE as ROLE,
@@ -17,25 +12,16 @@ import { loadChatSessions, saveChatSessions, createNewSession, updateSession, de
 import { trackEvent, sanitizeError, getEmbedHost } from "./lib/googleAnalytics";
 import { buildGroundedContext, getCurrentIndexVersion, initPageIndex, hasIndex } from "./lib/ragEngine.js";
 import { installHostNavWatcher } from "./lib/hostNav.js";
-import { Box, Container, DropdownMenu, Flex, Link, ScrollArea, Text, Tooltip } from "@radix-ui/themes";
-import {
-  ArrowRightIcon,
-  DocumentDuplicateIcon,
-  PencilSquareIcon,
-  SpeakerWaveIcon,
-  Bars3Icon,
-  MicrophoneIcon,
-} from "@heroicons/react/24/outline";
-import { StopCircleIcon } from "@heroicons/react/24/solid";
-import Markdown from "./components/Markdown";
+import { ELLIPSIS } from "./lib/constants";
+import { Box, Container, Flex, Link, ScrollArea, Text } from "@radix-ui/themes";
 import Footer from "./components/Footer";
 import Loader from "./components/Loader";
-import Dropdown from "./components/Dropdown";
-import IconButton from "./components/IconButton";
 import ChatHistorySidebar from "./components/ChatHistorySidebar";
-import RelatedSections from "./components/RelatedSections.jsx";
+import ChatHeader from "./components/ChatHeader";
+import MessageItem from "./components/MessageItem";
+import PromptInput from "./components/PromptInput";
+import WelcomeMessage from "./components/WelcomeMessage";
 
-const ELLIPSIS = "...";
 const DEFAULT_MODEL_ID = Object.values(PRESET_MODELS).find((m) => m.default)?.name || Object.keys(PRESET_MODELS)[0];
 
 // Small/tiny models occasionally leak their own chat-template control tokens as
@@ -58,7 +44,6 @@ const STRAY_TOKEN_DETECT_RE = new RegExp(STRAY_TOKEN_PATTERN_SRC, "i");
 // stream itself instead of hardcoding every model's markers.
 const TURN_END_STOP_SEQUENCES = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>"];
 
-const preventClickAction = (e) => e.preventDefault();
 // eslint-disable-next-line no-console
 const copyToClipboard = (text) => navigator.clipboard.writeText(text).catch((e) => console.error(e));
 
@@ -926,45 +911,16 @@ function App() {
         }}
       >
         <Flex direction="column">
-          <Flex direction="row" align="center" justify="between" asChild>
-            <header>
-              <Flex gap="4" align="center">
-                <IconButton tooltip="Chat History" onClick={toggleSidebar} variant="ghost">
-                  <Bars3Icon width="24" />
-                </IconButton>
-                <IconButton tooltip="New Chat" onClick={handleOnNewChatClick} disabled={isBusy} variant="ghost">
-                  <PencilSquareIcon width="24" />
-                </IconButton>
-                <Dropdown label={selectedModel.name}>
-                  {Object.values(PRESET_MODELS).map(({ name, description }) => (
-                    <Tooltip content={description} side="right" key={name}>
-                      <DropdownMenu.Item
-                        disabled={name === selectedModel.name || isBusy}
-                        onClick={getMenuOptionHandler(name)}
-                      >
-                        {name}
-                      </DropdownMenu.Item>
-                    </Tooltip>
-                  ))}
-                  {localModelFiles.length > 0 && <DropdownMenu.Item disabled>{selectedModel.name}</DropdownMenu.Item>}
-                  <DropdownMenu.Separator />
-                  <DropdownMenu.Item asChild onSelect={preventClickAction}>
-                    <label title="Select your own local GGUF file">
-                      Select GGUF file (2GB Max)...
-                      <input
-                        type="file"
-                        accept=".gguf"
-                        disabled={isBusy}
-                        ref={fileInputRef}
-                        onChange={handleFileInputChange}
-                        hidden
-                      />
-                    </label>
-                  </DropdownMenu.Item>
-                </Dropdown>
-              </Flex>
-            </header>
-          </Flex>
+          <ChatHeader
+            selectedModel={selectedModel}
+            isBusy={isBusy}
+            onToggleSidebar={toggleSidebar}
+            onNewChat={handleOnNewChatClick}
+            onSelectModel={getMenuOptionHandler}
+            onFileInputChange={handleFileInputChange}
+            fileInputRef={fileInputRef}
+            localModelFiles={localModelFiles}
+          />
           <Container size="2" style={{ maxWidth: "100%", overflow: "hidden" }}>
             <Box minHeight="20vh" py="2" style={{ maxWidth: "100%", overflow: "hidden" }}>
               {messages.length ? (
@@ -974,113 +930,20 @@ function App() {
                   className={`messages-container${isEmbedded ? " embedded" : ""}`}
                   ref={messagesContainerRef}
                 >
-                  {messages.map(({ content, role, id, sources }, index) => {
-                    const isLastMessage = index === messages.length - 1;
-                    const [reasoning, conclusion = " "] = content.startsWith("<think>")
-                      ? content.split("</think>")
-                      : ["", content];
-                    const isUser = role === ROLE.user;
-
-                    return (
-                      <Box key={id} mb="6" className="mobile-message">
-                        <Flex direction="row" justify="start" align="start" gap="4">
-                          {/* Role indicator */}
-                          <Box
-                            style={{
-                              width: "28px",
-                              height: "28px",
-                              backgroundColor: isUser ? "var(--accent-9)" : "var(--gray-a6)",
-                              borderRadius: "6px",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: "12px",
-                              fontWeight: "600",
-                              color: isUser ? "white" : "var(--gray-a12)",
-                              flexShrink: 0,
-                              marginTop: "2px",
-                            }}
-                          >
-                            {isUser ? "U" : "AI"}
-                          </Box>
-
-                          <Box style={{ flex: 1, minWidth: 0 }}>
-                            {/* Message content */}
-                            <Box
-                              style={{
-                                background: "var(--color-surface)",
-                                border: `1px solid var(--gray-a6)`,
-                                borderRadius: "8px",
-                                padding: "16px",
-                                wordBreak: "break-word",
-                                wordWrap: "break-word",
-                                overflowWrap: "break-word",
-                                hyphens: "auto",
-                                position: "relative",
-                                maxWidth: "100%",
-                                overflow: "hidden",
-                              }}
-                            >
-                              {content !== ELLIPSIS ? (
-                                <div>
-                                  {reasoning && (
-                                    <Text
-                                      as="div"
-                                      size="1"
-                                      style={{
-                                        color: "var(--gray-a11)",
-                                        marginBottom: "12px",
-                                        fontStyle: "italic",
-                                        padding: "8px",
-                                        background: "var(--gray-a3)",
-                                        borderRadius: "4px",
-                                        borderLeft: "3px solid var(--gray-a6)",
-                                      }}
-                                    >
-                                      <strong>Reasoning:</strong> {reasoning.split("<think>")[1] || ""}
-                                    </Text>
-                                  )}
-                                  <Markdown>{conclusion}</Markdown>
-                                </div>
-                              ) : (
-                                <div style={{ color: "var(--gray-a10)" }}>{ELLIPSIS}</div>
-                              )}
-                            </Box>
-
-                            {/* Action buttons for assistant messages */}
-                            {role === ROLE.assistant &&
-                              content !== ELLIPSIS &&
-                              !(isLastMessage && isGenerating && generatingSessionId === currentSessionId) && (
-                                <Flex mt="3" gap="2" justify="start">
-                                  <IconButton
-                                    size="1"
-                                    tooltip="Read aloud"
-                                    onClick={() => handleReadAloudClick(content)}
-                                    variant="soft"
-                                    color="gray"
-                                  >
-                                    {isReadingAloud ? <StopCircleIcon width="14" /> : <SpeakerWaveIcon width="14" />}
-                                  </IconButton>
-                                  <IconButton
-                                    size="1"
-                                    tooltip="Copy to clipboard"
-                                    onClick={() => copyToClipboard(content)}
-                                    variant="soft"
-                                    color="gray"
-                                  >
-                                    <DocumentDuplicateIcon width="14" />
-                                  </IconButton>
-                                </Flex>
-                              )}
-                            {/* Related sections from retrieval (spec FR-5) */}
-                            {role === ROLE.assistant && sources?.length > 0 && content !== ELLIPSIS && (
-                              <RelatedSections sources={sources} />
-                            )}
-                          </Box>
-                        </Flex>
-                      </Box>
-                    );
-                  })}
+                  {messages.map((message, index) => (
+                    <MessageItem
+                      key={message.id}
+                      content={message.content}
+                      role={message.role}
+                      sources={message.sources}
+                      isLastMessage={index === messages.length - 1}
+                      isGenerating={isGenerating}
+                      isCurrentSessionGenerating={generatingSessionId === currentSessionId}
+                      isReadingAloud={isReadingAloud}
+                      onReadAloud={handleReadAloudClick}
+                      onCopy={copyToClipboard}
+                    />
+                  ))}
                   {isLoading && (
                     <Text as="div" size="2">
                       {loadedSize > 0 && parseFloat(loadingProgressDisplayString) < 100 ? (
@@ -1101,153 +964,27 @@ function App() {
                   )}
                 </ScrollArea>
               ) : (
-                <Box className="welcome-text" pb="5">
-                  {isLoading ? (
-                    <Flex direction="column" align="center" gap="4">
-                      <Text size="6" align="center" asChild>
-                        <h1>Please wait while the model loads...</h1>
-                      </Text>
-                      <Text size="3" color="gray" align="center">
-                        {loadedSize > 0 && parseFloat(loadingProgressDisplayString) < 100 ? (
-                          <>
-                            <b>{loadingProgressDisplayString}</b> Downloading model {modelSizeDisplayString}
-                          </>
-                        ) : (
-                          "Preparing model…"
-                        )}
-                      </Text>
-                      <Text size="2" color="gray" align="center">
-                        It loads only once. It will be cached on your web server.
-                      </Text>
-                      <Loader isLoading={true} />
-                    </Flex>
-                  ) : (
-                    <Text size="7" align="center" asChild>
-                      <h1 className="scale-up-center">
-                        {widgetLabel ? `How can ${widgetLabel} help you?` : "Hi, how may I help you?"}
-                      </h1>
-                    </Text>
-                  )}
-                </Box>
+                <WelcomeMessage
+                  isLoading={isLoading}
+                  loadedSize={loadedSize}
+                  loadingProgressDisplayString={loadingProgressDisplayString}
+                  modelSizeDisplayString={modelSizeDisplayString}
+                  widgetLabel={widgetLabel}
+                />
               )}
             </Box>
-            <Box>
-              <Box
-                style={{
-                  position: "relative",
-                  background: "var(--color-surface)",
-                  borderRadius: "12px",
-                  border: "2px solid var(--gray-a6)",
-                  padding: "12px 16px",
-                  minHeight: "52px",
-                  display: "flex",
-                  alignItems: "flex-end",
-                  gap: "12px",
-                  transition: "border-color 0.2s ease",
-                }}
-                onFocus={(e) => {
-                  if (e.currentTarget.querySelector("textarea")) {
-                    e.currentTarget.style.borderColor = "var(--accent-8)";
-                  }
-                }}
-                onBlur={(e) => {
-                  if (!e.currentTarget.contains(e.relatedTarget)) {
-                    e.currentTarget.style.borderColor = "var(--gray-a6)";
-                  }
-                }}
-              >
-                <Box style={{ flex: 1, position: "relative" }}>
-                  <textarea
-                    value={prompt}
-                    onKeyDown={handleOnPressEnter}
-                    onChange={handlePromptInputChange}
-                    placeholder="Type your message... (Shift+Enter for new line)"
-                    maxLength={4096}
-                    disabled={isBusy}
-                    rows={1}
-                    style={{
-                      width: "100%",
-                      border: "none",
-                      outline: "none",
-                      background: "transparent",
-                      color: "var(--color-text)",
-                      fontSize: "var(--font-size-3)",
-                      lineHeight: "1.5",
-                      resize: "none",
-                      overflow: "hidden",
-                      minHeight: "24px",
-                      maxHeight: "120px",
-                      fontFamily: "inherit",
-                    }}
-                    onInput={(e) => {
-                      e.target.style.height = "auto";
-                      e.target.style.height = e.target.scrollHeight + "px";
-                      if (e.target.scrollHeight > 120) {
-                        e.target.style.overflow = "auto";
-                      } else {
-                        e.target.style.overflow = "hidden";
-                      }
-                    }}
-                    onFocus={(e) => {
-                      e.target.parentElement.parentElement.style.borderColor = "var(--accent-8)";
-                    }}
-                    onBlur={(e) => {
-                      if (!e.target.parentElement.parentElement.contains(e.relatedTarget)) {
-                        e.target.parentElement.parentElement.style.borderColor = "var(--gray-a6)";
-                      }
-                    }}
-                  />
-                </Box>
-                <Flex gap="2" align="center" style={{ paddingBottom: "4px" }}>
-                  {speechRecognition && (
-                    <IconButton
-                      size="2"
-                      variant={isRecording ? "solid" : "soft"}
-                      color={isRecording ? "red" : "gray"}
-                      title={isRecording ? "Stop recording" : "Voice input"}
-                      onClick={handleSpeechToText}
-                      disabled={isBusy && !isRecording}
-                    >
-                      <MicrophoneIcon
-                        height="16"
-                        width="16"
-                        style={{
-                          animation: isRecording ? "pulse 1s infinite" : "none",
-                        }}
-                      />
-                    </IconButton>
-                  )}
-                  <IconButton
-                    size="2"
-                    variant="solid"
-                    title="Send message"
-                    onClick={submitPrompt}
-                    disabled={shouldDisableSubmit}
-                    loading={isGenerating}
-                    style={{
-                      backgroundColor: isGenerating || !shouldDisableSubmit ? "var(--accent-9)" : "var(--gray-a6)",
-                      color: "white",
-                      opacity: shouldDisableSubmit && !isGenerating ? 0.6 : 1,
-                      transition: "background-color 0.2s ease, opacity 0.2s ease",
-                    }}
-                  >
-                    <ArrowRightIcon height="16" width="16" />
-                  </IconButton>
-                </Flex>
-              </Box>
-              <Text
-                as="div"
-                size="1"
-                align="right"
-                mt="1"
-                style={{
-                  color: prompt.length > 3500 ? "var(--red-9)" : "var(--gray-a11)",
-                  fontWeight: prompt.length > 3500 ? "600" : "normal",
-                }}
-              >
-                {prompt.length}/4096
-              </Text>
-            </Box>
+            <PromptInput
+              prompt={prompt}
+              onPromptChange={handlePromptInputChange}
+              onKeyDown={handleOnPressEnter}
+              isBusy={isBusy}
+              isGenerating={isGenerating}
+              shouldDisableSubmit={shouldDisableSubmit}
+              hasSpeech={!!speechRecognition}
+              isRecording={isRecording}
+              onSpeechToText={handleSpeechToText}
+              onSubmit={submitPrompt}
+            />
             {!isEmbedded && (
               <Box pt="2" pb="4">
                 <Text as="div" align="center" size="1" color="gray">
