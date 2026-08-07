@@ -12,8 +12,10 @@ import { loadChatSessions, saveChatSessions, createNewSession, updateSession, de
 import { trackEvent, sanitizeError, getEmbedHost } from "./lib/googleAnalytics";
 import { buildGroundedContext, getCurrentIndexVersion, initPageIndex, hasIndex } from "./lib/ragEngine.js";
 import { installHostNavWatcher } from "./lib/hostNav.js";
+import { isGoodNetwork } from "./lib/network.js";
+import { hasLoadedModelBefore, markModelLoaded } from "./lib/modelLoadCache.js";
 import { ELLIPSIS } from "./lib/constants";
-import { Box, Container, Flex, Link, ScrollArea, Text } from "@radix-ui/themes";
+import { Box, Button, Container, Flex, Link, ScrollArea, Text } from "@radix-ui/themes";
 import Footer from "./components/Footer";
 import Loader from "./components/Loader";
 import ChatHistorySidebar from "./components/ChatHistorySidebar";
@@ -57,6 +59,8 @@ const modelStateDefaults = {
   isReady: false,
   modelId: DEFAULT_MODEL_ID,
   loadingProgress: 0,
+  awaitingConsent: false,
+  loadError: null,
 };
 
 function App() {
@@ -68,7 +72,7 @@ function App() {
   // fuzzy/partial name (e.g. "qwen", "gemma 3"). Invalid → built-in default +
   // console warning; ambiguous (multiple matches) → smallest preset + warning
   // listing candidates so the owner can pin the exact id.
-  const [{ isLoading, isReady, modelId, loadingProgress }, setModelState] = useState(() => {
+  const [{ isLoading, isReady, modelId, loadingProgress, awaitingConsent, loadError }, setModelState] = useState(() => {
     const requested = new URLSearchParams(window.location.search).get("defaultModel");
     const { name, ambiguous, candidates } = resolveDefaultModel(requested);
     if (requested && !name) {
@@ -158,11 +162,15 @@ function App() {
   const currentSessionIdRef = useRef(currentSessionId);
 
   const loadModel = async () => {
-    setModelState((current) => ({ ...current, isLoading: true }));
+    setModelState((current) => ({ ...current, isLoading: true, awaitingConsent: false, loadError: null }));
 
     const customModelUrl = modelUrlRef.current;
     const preset = PRESET_MODELS[modelId];
     const source = localModelFiles.length ? "local_file" : customModelUrl ? "custom_url" : "preset";
+    // Stable key for modelLoadCache (skip the ask-first prompt once this exact
+    // model has loaded before). Local files are never persisted/re-offered
+    // across reloads, so they're not tracked.
+    const modelKey = customModelUrl || preset.id;
     // Resolve the effective model from refs/state, NOT `selectedModel` (a render-
     // derived value that's stale inside a retried load after we clear modelUrlRef
     // to fall back from a failed custom URL to the built-in default).
@@ -203,6 +211,7 @@ function App() {
       // Custom model downloaded OK → keep the picker/uploader hidden. The lock is
       // optimistic from render #1; this just confirms the success path.
       if (source === "custom_url") setCustomModelLoadFailed(false);
+      if (source !== "local_file") markModelLoaded(modelKey);
       setModelState((current) => ({
         ...modelStateDefaults,
         isReady: true,
@@ -222,6 +231,12 @@ function App() {
         setCustomModelLoadFailed(true);
         return loadModel(); // retry as preset: customModelUrl is now null → preset.url
       }
+      // Root-cause fix: previously isLoading stayed true forever on any failure
+      // here (a failed/interrupted download, e.g. bad network or the visitor
+      // navigating away mid-download) — isBusy then permanently disabled New
+      // Chat + model switching with no way out. Resetting isLoading + surfacing
+      // loadError lets the UI show a Retry button instead of spinning forever.
+      setModelState((current) => ({ ...current, isLoading: false, loadError: err }));
       throw err;
     }
   };
@@ -331,7 +346,19 @@ function App() {
       setMessages([]);
     }
 
-    loadModel();
+    // Ask-first gate: only auto-load without asking when we have a positive
+    // signal it'll be fast — this exact model already loaded successfully
+    // before in this browser (very likely still cached), or isGoodNetwork()
+    // confirms a fast/unmetered connection right now. Otherwise show a
+    // "Download to start chatting" prompt so history/model-switching aren't
+    // blocked behind an unwanted download (grill: don't surprise slow-network
+    // visitors with an immediate multi-hundred-MB fetch).
+    const gateModelKey = modelUrlRef.current || PRESET_MODELS[modelId]?.id;
+    if (hasLoadedModelBefore(gateModelKey) || isGoodNetwork()) {
+      loadModel();
+    } else {
+      setModelState((current) => ({ ...current, awaitingConsent: true }));
+    }
 
     // Embed mode: set up the host→iframe section bridge (cross-origin support)
     // + the iframe-side SPA watcher as a fallback.
@@ -968,6 +995,26 @@ function App() {
                       onCopy={copyToClipboard}
                     />
                   ))}
+                  {awaitingConsent && (
+                    <Flex direction="column" align="start" gap="2" py="2">
+                      <Text as="div" size="2" color="gray">
+                        Download model {modelSizeDisplayString} to continue chatting.
+                      </Text>
+                      <Button size="1" variant="soft" onClick={loadModel}>
+                        Download model
+                      </Button>
+                    </Flex>
+                  )}
+                  {loadError && (
+                    <Flex direction="column" align="start" gap="2" py="2">
+                      <Text as="div" size="2" color="red">
+                        Model download failed. Check your connection and try again.
+                      </Text>
+                      <Button size="1" variant="soft" onClick={loadModel}>
+                        Retry
+                      </Button>
+                    </Flex>
+                  )}
                   {isLoading && (
                     <Text as="div" size="2">
                       {loadedSize > 0 && parseFloat(loadingProgressDisplayString) < 100 ? (
@@ -994,6 +1041,9 @@ function App() {
                   loadingProgressDisplayString={loadingProgressDisplayString}
                   modelSizeDisplayString={modelSizeDisplayString}
                   widgetLabel={widgetLabel}
+                  awaitingConsent={awaitingConsent}
+                  loadError={loadError}
+                  onDownload={loadModel}
                 />
               )}
             </Box>
