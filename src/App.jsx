@@ -47,12 +47,10 @@ const TURN_END_STOP_SEQUENCES = ["<end_of_turn>", "<|im_end|>", "<|eot_id|>"];
 // eslint-disable-next-line no-console
 const copyToClipboard = (text) => navigator.clipboard.writeText(text).catch((e) => console.error(e));
 
-const messageIdGenerator = (function* () {
-  let id = 0;
-  while (true) {
-    yield `msg-${id++}`;
-  }
-})();
+// Globally-unique per-message id (React key + assistant-message targeting during
+// streaming). UUID, NOT a monotonic counter: a counter resets to 0 on every page
+// load and collides with ids restored from localStorage → duplicate React keys.
+const nextMessageId = () => crypto.randomUUID();
 
 const modelStateDefaults = {
   isLoading: false,
@@ -108,11 +106,24 @@ function App() {
   // Site-owner persona override (RAG opening line only — never rendered, so a
   // ref is enough; no re-render needed like widgetLabel).
   const personaRef = useRef(null);
-  // Site-owner custom model URL override. Read fresh inside loadModel() at call
-  // time (not baked into `selectedModel`) — the mount effect below sets this ref
-  // and calls loadModel() synchronously in the same tick, before render #1's
-  // closures would ever see the updated value otherwise.
+  // Site-owner custom model URL override. The URL param is read once (lazy init
+  // of `hasCustomModelUrl` below) and mirrored into this ref BEFORE render #1, so
+  // `selectedModel` (derived at render) and `loadModel()` (reads it fresh) both
+  // see it from the first paint. loadModel() may null this out to fall back to a
+  // preset if the custom model fails to download.
   const modelUrlRef = useRef(null);
+  // customModelLocked = a site-owner modelUrl is configured AND still the active
+  // choice. While true, the model picker + GGUF uploader are hidden so a visitor
+  // only ever sees the owner's chosen model. If the custom download fails, we flip
+  // `customModelLoadFailed` → the picker is revealed again and the built-in
+  // default is loaded (the existing, unlocked behavior).
+  const [customModelLoadFailed, setCustomModelLoadFailed] = useState(false);
+  const [hasCustomModelUrl] = useState(() => {
+    const url = new URLSearchParams(window.location.search).get("modelUrl");
+    if (url) modelUrlRef.current = decodeURIComponent(url); // sync ref before render #1
+    return Boolean(url);
+  });
+  const customModelLocked = hasCustomModelUrl && !customModelLoadFailed;
   // Host→iframe section bridge (cross-origin support). embed.ts posts page
   // sections via postMessage; we store them here and feed them to the RAG index.
   const externalSectionsRef = useRef(null);
@@ -150,12 +161,12 @@ function App() {
     setModelState((current) => ({ ...current, isLoading: true }));
 
     const customModelUrl = modelUrlRef.current;
+    const preset = PRESET_MODELS[modelId];
     const source = localModelFiles.length ? "local_file" : customModelUrl ? "custom_url" : "preset";
-    const modelName = localModelFiles.length
-      ? localModelFiles[0].name
-      : customModelUrl
-        ? "Custom model"
-        : selectedModel.name;
+    // Resolve the effective model from refs/state, NOT `selectedModel` (a render-
+    // derived value that's stale inside a retried load after we clear modelUrlRef
+    // to fall back from a failed custom URL to the built-in default).
+    const modelName = localModelFiles.length ? localModelFiles[0].name : customModelUrl ? "Custom model" : preset.name;
     const loadStartTime = Date.now();
 
     trackEvent({ name: "model_load_started", params: { model_name: modelName, source } });
@@ -180,15 +191,18 @@ function App() {
       await wllama.exit();
       if (localModelFiles.length) {
         await wllama.loadModel(localModelFiles, options);
-      } else if (customModelUrl) {
-        await wllama.loadModelFromUrl(customModelUrl, options);
       } else {
-        await wllama.loadModelFromUrl(selectedModel.url, options);
+        // customUrl wins while modelUrlRef is set; once a failed custom load
+        // clears it, this resolves to the built-in default.
+        await wllama.loadModelFromUrl(customModelUrl || preset.url, options);
       }
       trackEvent({
         name: "model_load_completed",
         params: { model_name: modelName, source, duration_ms: Date.now() - loadStartTime },
       });
+      // Custom model downloaded OK → keep the picker/uploader hidden. The lock is
+      // optimistic from render #1; this just confirms the success path.
+      if (source === "custom_url") setCustomModelLoadFailed(false);
       setModelState((current) => ({
         ...modelStateDefaults,
         isReady: true,
@@ -200,6 +214,14 @@ function App() {
         name: "error_occurred",
         params: { category: "model", action: "load", error: sanitizeError(err) },
       });
+      if (source === "custom_url") {
+        // Site-owner modelUrl not downloadable (bad URL, CORS, 404, …) → fall back
+        // to the built-in default AND reveal the standard picker/uploader so the
+        // visitor can still choose a model (existing, unlocked behavior).
+        modelUrlRef.current = null;
+        setCustomModelLoadFailed(true);
+        return loadModel(); // retry as preset: customModelUrl is now null → preset.url
+      }
       throw err;
     }
   };
@@ -253,7 +275,6 @@ function App() {
     const labelParam = urlParams.get("label");
     const siteIndexUrlParam = urlParams.get("siteIndexUrl");
     const personaParam = urlParams.get("persona");
-    const modelUrlParam = urlParams.get("modelUrl");
     const preIndexParam = urlParams.get("preIndex");
 
     // eslint-disable-next-line no-console
@@ -290,7 +311,8 @@ function App() {
     if (labelParam) setWidgetLabel(decodeURIComponent(labelParam));
     if (siteIndexUrlParam) siteIndexUrlRef.current = decodeURIComponent(siteIndexUrlParam);
     if (personaParam) personaRef.current = decodeURIComponent(personaParam); // wins over `system` above if both set
-    if (modelUrlParam) modelUrlRef.current = decodeURIComponent(modelUrlParam);
+    // modelUrl is read once in hasCustomModelUrl's lazy init (which also mirrors
+    // it into modelUrlRef before render #1) — nothing to do here.
     if (preIndexParam === "on-open" || preIndexParam === "after-model") preIndexRef.current = preIndexParam;
 
     const sessions = loadChatSessions(domainParam, embeddedParam === "true" ? "session" : "local");
@@ -496,8 +518,8 @@ function App() {
   }, []);
 
   const streamMessages = (prompt, sessionId) => {
-    const userMessage = { role: ROLE.user, content: prompt.trim(), id: messageIdGenerator.next().value };
-    const assistantMessage = { role: ROLE.assistant, content: ELLIPSIS, id: messageIdGenerator.next().value };
+    const userMessage = { role: ROLE.user, content: prompt.trim(), id: nextMessageId() };
+    const assistantMessage = { role: ROLE.assistant, content: ELLIPSIS, id: nextMessageId() };
 
     // Update the specific session's messages
     setChatSessions((current) => {
@@ -640,7 +662,7 @@ function App() {
         content: systemContent,
       },
       ...latestMessages,
-      { role: ROLE.user, content: currentPrompt.trim(), id: messageIdGenerator.next().value },
+      { role: ROLE.user, content: currentPrompt.trim(), id: nextMessageId() },
     ]);
 
     const abortController = new AbortController();
@@ -920,6 +942,8 @@ function App() {
             onFileInputChange={handleFileInputChange}
             fileInputRef={fileInputRef}
             localModelFiles={localModelFiles}
+            lockModelSelector={customModelLocked}
+            widgetLabel={widgetLabel}
           />
           <Container size="2" style={{ maxWidth: "100%", overflow: "hidden" }}>
             <Box minHeight="20vh" py="2" style={{ maxWidth: "100%", overflow: "hidden" }}>

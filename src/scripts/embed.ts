@@ -11,6 +11,11 @@ declare global {
       label?: string;
       siteIndexUrl?: string;
       persona?: string;
+      // URL to a GGUF file the site owner wants loaded INSTEAD of any built-in
+      // model. While set AND downloadable, the iframe HIDES the model picker +
+      // GGUF uploader so visitors only ever see this model; if it fails to
+      // download (bad URL/CORS/404), the iframe falls back to the built-in
+      // default and reveals the standard picker. Forwarded as a query param.
       modelUrl?: string;
       // Stable preset id (e.g. "qwen3-0.6b") to load INSTEAD of the built-in
       // default. Forwarded to the iframe; invalid → iframe falls back to default.
