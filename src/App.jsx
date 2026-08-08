@@ -14,6 +14,7 @@ import { buildGroundedContext, getCurrentIndexVersion, initPageIndex, hasIndex }
 import { installHostNavWatcher } from "./lib/hostNav.js";
 import { isGoodNetwork } from "./lib/network.js";
 import { hasLoadedModelBefore, markModelLoaded } from "./lib/modelLoadCache.js";
+import { describeLoadError } from "./lib/modelLoadError.js";
 import { ELLIPSIS } from "./lib/constants";
 import { Box, Button, Container, Flex, Link, ScrollArea, Text } from "@radix-ui/themes";
 import Footer from "./components/Footer";
@@ -925,6 +926,10 @@ function App() {
 
   const isBusy = isLoading || isGenerating;
   const shouldDisableSubmit = isBusy || !prompt.trim() || !/\S/.test(prompt.trim());
+  // Classify once per render; both the inline error prompt and WelcomeMessage
+  // read this so a transient failure (network) shows Retry while a permanent one
+  // (OOM / bad file) points at the model picker instead of looping on Retry.
+  const loadErrorInfo = loadError ? describeLoadError(loadError) : null;
   const loadedSize = loadingProgress.loaded || 0;
   const totalSize = loadingProgress.total || 100;
   const loadingProgressDisplayString = `${(Math.floor((loadedSize / totalSize) * 10000) / 100).toFixed(2)}%`;
@@ -1005,11 +1010,16 @@ function App() {
                       </Button>
                     </Flex>
                   )}
-                  {loadError && (
+                  {loadErrorInfo && (
                     <Flex direction="column" align="start" gap="2" py="2">
                       <Text as="div" size="2" color="red">
-                        Model download failed. Check your connection and try again.
+                        {loadErrorInfo.message}
                       </Text>
+                      {loadErrorInfo.hint && (
+                        <Text as="div" size="1" color="gray">
+                          {loadErrorInfo.hint}
+                        </Text>
+                      )}
                       <Button size="1" variant="soft" onClick={loadModel}>
                         Retry
                       </Button>
@@ -1042,7 +1052,7 @@ function App() {
                   modelSizeDisplayString={modelSizeDisplayString}
                   widgetLabel={widgetLabel}
                   awaitingConsent={awaitingConsent}
-                  loadError={loadError}
+                  loadErrorInfo={loadErrorInfo}
                   onDownload={loadModel}
                 />
               )}

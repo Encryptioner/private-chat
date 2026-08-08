@@ -20,6 +20,7 @@ This is a browser-based AI chat assistant that runs LLMs (Large Language Models)
 - `src/App.jsx`: Main application component containing all chat logic (incl. the embed-mode RAG branch in `submitPrompt` + the host→iframe `postMessage` section consumer)
 - `src/scripts/embed.ts`: Host-context embed script (built to `dist/embed.js`). Scrapes the host (default or `PRIVATE_CHAT_CONFIG.getSections`), bridges sections to the iframe via `postMessage`, re-scrapes on SPA nav, and handles cross-origin scroll-to. Same-origin iframe-side scrape is the fallback.
 - `src/lib/wllama.js`: Wllama integration, model definitions, and chat formatting
+- `src/lib/modelLoadCache.js` + `network.js` + `modelLoadError.js`: the model-load recovery layer — ask-first gate (`awaitingConsent` via the Network Information API), success-only "loaded before" cache, and error classification (network / too-large / storage / invalid) feeding the Retry UI
 - `src/lib/ragEngine.js`: Site-aware RAG — grounded system-message builder + `navigateToSection` (host scroll/nav)
 - `src/lib/embeddings.js`: Local vector index (its **own** Wllama embedder instance, not the chat singleton) + brute-force retrieval; IndexedDB-cached
 - `src/lib/scraper.js`: Host-page DOM → anchor-tagged chunks (iframe-aware: reads same-origin `window.parent.document`)
@@ -59,6 +60,8 @@ pnpm run preview
 The app supports two types of models:
 1. **Preset Models**: Defined in `src/lib/wllama.js` PRESET_MODELS, downloaded from Hugging Face
 2. **Local GGUF Files**: Users can upload their own .gguf files (max 2GB in browser)
+
+> **Model loading, failure recovery & browser limits:** ~2GB is the practical ceiling (WebAssembly memory), downloads are non-resumable, and a failed/interrupted load always self-heals on reload (wllama validates cached files by size). The two-state recovery machine (`awaitingConsent` + `loadError`), the full failure-mode matrix, and error classification live in **[`docs/MODEL-LOADING.md`](docs/MODEL-LOADING.md)**.
 
 Default chat model (**Gemma 3 270M (278MB)**, `default: true` in `PRESET_MODELS`) is downloaded during `pnpm install` to `public/models/`. Set `SKIP_DOWNLOAD_MODEL=true` to skip automatic download.
 

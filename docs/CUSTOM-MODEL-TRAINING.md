@@ -43,12 +43,15 @@ consumed by `App.jsx`.
 
 ### Error handling
 
-`loadModel` already wraps the load in `try/catch` and fires `model_load_failed` /
-`error_occurred` analytics events (`src/App.jsx:150-155`). A bad `modelUrl` (404, CORS
-rejection, corrupt/non-GGUF file) hits that same catch — **no new failure mode**, it just
-degrades the same way a broken preset URL already would. No fallback-to-default-model retry is
-planned: a site owner who sets a broken URL should see the load fail loudly (via the existing
-error UI), not silently get a different model than the one they configured.
+`loadModel` wraps the load in `try/catch` and fires `model_load_failed` / `error_occurred`
+analytics events. A bad `modelUrl` (404, CORS rejection, corrupt/non-GGUF file) hits that same
+catch and **auto-falls back to the built-in default**: it clears the custom-URL ref, reveals the
+standard picker, and re-runs `loadModel` as a preset so the visitor can still choose a model —
+**no new failure mode**, it degrades the same way a broken preset URL already would.
+
+Every load failure is classified by `src/lib/modelLoadError.js` so the UI shows the right
+recovery path (network → Retry; too-large / invalid → "pick another model"; storage → free space).
+Full matrix, the two-state recovery machine, and browser limits: **[`MODEL-LOADING.md`](MODEL-LOADING.md)**.
 
 ### Requirements for the hosted GGUF
 
@@ -56,9 +59,10 @@ error UI), not silently get a different model than the one they configured.
   policy, etc.) — Wllama fetches it via range requests from the iframe's origin, same
   cross-origin constraint the embedder model already has.
 - Architecture must be one `llama.cpp` (and therefore Wllama) supports.
-- No hard size cap enforced by the widget, but anything much past the current default
-  (Gemma 3 270M, 278MB) meaningfully hurts first-load time for visitors on slow connections —
-  same tradeoff as choosing any `PRESET_MODELS` entry today.
+- No hard size cap enforced by the widget, but the practical ceiling is ~2GB (WebAssembly linear
+  memory) and downloads are non-resumable — anything much past the current default (Gemma 3 270M,
+  278MB) meaningfully hurts first-load time and resilience on slow/flaky connections. See the limits
+  table in **[`MODEL-LOADING.md`](MODEL-LOADING.md)**.
 - **Avoid long signed/presigned URLs** (S3, R2 query-string auth) if possible — `modelUrl` is
   forwarded as a query param on the iframe's own URL, and auth query strings routinely add
   500–1500+ characters. Prefer a public/unsigned URL (HF Spaces, a public R2/GitHub raw path)

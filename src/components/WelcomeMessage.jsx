@@ -3,9 +3,11 @@ import { Box, Button, Flex, Text } from "@radix-ui/themes";
 import Loader from "./Loader";
 
 // Empty-state: a download-consent prompt (slow/unknown network + never loaded
-// before), a load-failed prompt with Retry, a model-loading screen (with
+// before), a load-failed prompt (classified — Retry for transient, "pick another
+// model" for permanent OOM/bad-file failures), a model-loading screen (with
 // download %), or the greeting (site-owner widgetLabel when embedded).
-// Lifted verbatim from App.jsx's `messages.length === 0` branch — pure render.
+// Pure render — receives an already-classified `loadErrorInfo` from App.jsx
+// (see src/lib/modelLoadError.js).
 function WelcomeMessage({
   isLoading,
   loadedSize,
@@ -13,7 +15,7 @@ function WelcomeMessage({
   modelSizeDisplayString,
   widgetLabel,
   awaitingConsent,
-  loadError,
+  loadErrorInfo,
   onDownload,
 }) {
   return (
@@ -31,14 +33,19 @@ function WelcomeMessage({
             Download model
           </Button>
         </Flex>
-      ) : loadError ? (
+      ) : loadErrorInfo ? (
         <Flex direction="column" align="center" gap="4">
           <Text size="6" align="center" asChild>
-            <h1>Download failed</h1>
+            <h1>{loadErrorInfo.title}</h1>
           </Text>
           <Text size="3" color="gray" align="center">
-            Check your connection and try again.
+            {loadErrorInfo.message}
           </Text>
+          {loadErrorInfo.hint && (
+            <Text size="2" color="gray" align="center">
+              {loadErrorInfo.hint}
+            </Text>
+          )}
           <Button size="2" onClick={onDownload}>
             Retry
           </Button>
@@ -80,7 +87,13 @@ WelcomeMessage.propTypes = {
   modelSizeDisplayString: PropTypes.string,
   widgetLabel: PropTypes.string,
   awaitingConsent: PropTypes.bool,
-  loadError: PropTypes.oneOfType([PropTypes.instanceOf(Error), PropTypes.object]),
+  loadErrorInfo: PropTypes.shape({
+    category: PropTypes.string,
+    recoverable: PropTypes.bool,
+    title: PropTypes.string,
+    message: PropTypes.string,
+    hint: PropTypes.string,
+  }),
   onDownload: PropTypes.func,
 };
 

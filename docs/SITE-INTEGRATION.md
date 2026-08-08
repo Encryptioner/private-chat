@@ -174,6 +174,18 @@ When set, the widget skips `preloadModel` **and** withholds `preIndex` — the m
 
 ---
 
+## Model loading, caching & failure recovery
+
+Site-owner essentials — the chat model (~278MB) **and** the separate ~35MB RAG embedder both cache in the visitor's browser after first download:
+
+- **A failed/interrupted download never breaks the next visit** — reload always recovers, and an in-chat **Retry** is offered. No support burden on you.
+- **No surprise big fetches** — an ask-first prompt holds the download on slow/metered links, Safari, or first-ever use.
+- **~2 GB is the practical cap** (browser memory). Pick the smallest preset that answers well for your content.
+
+Everything else — the failure-mode matrix, the recovery state machine, the error classifier, retry-vs-switch guidance, the `loadModel()` code path, and a per-browser storage-limits table — lives in **[`MODEL-LOADING.md`](MODEL-LOADING.md)**.
+
+---
+
 ## Custom scraper — `getSections`
 
 > 📖 **Writing your own scraper?** See [`docs/CUSTOM-SCRAPER-GUIDE.md`](CUSTOM-SCRAPER-GUIDE.md)
@@ -552,6 +564,7 @@ assigns ids to id-less headings so they're navigable.
 | Widget doesn't appear | The script tag needs `id="aiChatEmbedScript"` and the exact `src`. Check the browser console. |
 | Answers/links reference a **different site's content** | You set `siteIndexUrl` to a root-relative path (`/site-index.json`) on a site that shares its origin with something else — it fetched a sibling's file. See [the gotcha](#gotcha-siteindexurl-on-a-shared-origin). |
 | Cross-origin still context-less | Ensure you're on the latest `embed.js` (the host-side scrape ships there). Older cached versions fall back to iframe-side scrape (same-origin only). |
+| Model download fails / loops / "out of memory" | A failed/interrupted download always recovers on reload (the cache self-heals). If the *same* model fails repeatedly it's too big for the device's WASM memory — pick a smaller preset. See [Model loading & failure recovery](#model-loading-caching--failure-recovery). |
 
 ---
 

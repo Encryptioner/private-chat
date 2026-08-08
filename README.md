@@ -186,7 +186,7 @@ The app supports various GGUF models from Hugging Face:
 - SmolLM2 360M
 - Custom GGUF file upload (max 2GB)
 
-Models are automatically cached in browser for offline use.
+Models are automatically cached in browser for offline use. A failed or interrupted download always recovers on reload, downloads aren't resumable, and ~2GB is the practical ceiling (WebAssembly memory). See [`docs/MODEL-LOADING.md`](docs/MODEL-LOADING.md) for every failure mode, the recovery flow, and browser storage limits.
 
 ## Credits
 - [Wllama](https://github.com/ngxson/wllama)
