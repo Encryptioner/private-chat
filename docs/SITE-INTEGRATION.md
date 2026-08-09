@@ -367,7 +367,11 @@ pnpm build:site-index -- --url https://yoursite.example/ [--depth 1] \
    it automatically. Only set `siteIndexUrl` explicitly if you're putting the file somewhere else, and
    if you do, read [the gotcha below](#gotcha-siteindexurl-on-a-shared-origin) first.
 4. **Re-run the crawler when content changes** — `site-index.json` is a static snapshot. The widget's
-   content-hash cache means a new file triggers one re-embed, then it's cached again.
+   content-hash cache means a new file triggers one re-embed, then it's cached again. If the new
+   content is **on a dev/unreleased branch** or is **rendered dynamically by JS** (markdown→HTML, an
+   SPA route), crawling the production URL gives you a stale/empty index — see
+   [`SITE-INDEX-REGENERATION.md`](./SITE-INDEX-REGENERATION.md) for the local-serve → crawl →
+   rewrite-host procedure (with a copy-paste quick-run block).
 
 > Worked example: `branchdiff-releases` ships a `site-index.json` covering its landing + guideline +
 > changelog (3 pages, ~269 chunks), so the chat answers install/changelog/guideline questions from any
