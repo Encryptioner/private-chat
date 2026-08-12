@@ -59,6 +59,20 @@ describe("scrapeCurrentPage — host.html (same-origin parent)", () => {
   });
 });
 
+describe("headings with embedded action buttons (copy-link, etc.)", () => {
+  it("excludes button text/tooltips from the section title and slug", () => {
+    loadBody(`
+      <h2>Getting started<button class="copy-link-btn"><span class="copy-link-tip">Copy link</span></button></h2>
+      <p>Some intro text that is long enough to be kept as a section.</p>
+    `);
+    const sections = scrapeCurrentPage();
+    const section = sections.find((s) => s.title === "Getting started");
+    expect(section).toBeDefined();
+    expect(section.anchor).toBe("getting-started");
+    expect(sections.some((s) => /copy link/i.test(s.title))).toBe(false);
+  });
+});
+
 describe("uniqueSlug — collision guard (grill M4)", () => {
   it("returns the base slug when the id is free", () => {
     loadBody("<div><h2>Pricing</h2></div>");

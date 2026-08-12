@@ -67,9 +67,16 @@ export function scrapeCurrentPage(rootEl) {
   // path joined ("H2 — H3"), so subsections carry parent context (hierarchical)
   // instead of a flat/stale nearest-heading title.
   const outline = [];
+  // Strips heading-embedded action controls (copy-link buttons, anchor icons,
+  // etc.) before reading text — their labels/tooltips aren't part of the title.
+  const headingText = (node) => {
+    const clone = node.cloneNode(true);
+    clone.querySelectorAll('button, [role="button"]').forEach((el) => el.remove());
+    return clone.textContent.trim().replace(/\s+/g, " ");
+  };
   const headingTitle = (node) => {
     const level = HEADING_LEVEL[node.tagName];
-    const text = node.textContent.trim().replace(/\s+/g, " ");
+    const text = headingText(node);
     if (level) {
       while (outline.length && outline[outline.length - 1].level >= level) outline.pop();
       outline.push({ level, text });
@@ -114,7 +121,7 @@ export function scrapeCurrentPage(rootEl) {
       currentAnchor = node.id;
       if (isHeading) currentTitle = headingTitle(node);
     } else if (isHeading) {
-      const slug = slugify(node.textContent);
+      const slug = slugify(headingText(node));
       // If an element already owns this id AND this heading lives INSIDE it, the
       // heading is that section's title — reuse the section's anchor instead of
       // spawning a colliding boundary (grill M4: avoid false collisions).
@@ -131,7 +138,7 @@ export function scrapeCurrentPage(rootEl) {
         // links. Host integrators should be aware that running the scraper
         // adds ids to previously id-less heading elements.
         flush();
-        currentAnchor = uniqueSlug(node.textContent, rootDoc);
+        currentAnchor = uniqueSlug(headingText(node), rootDoc);
         node.id = currentAnchor;
         currentTitle = headingTitle(node);
       }
