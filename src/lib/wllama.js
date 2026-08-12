@@ -268,6 +268,23 @@ class WllamaWrapper {
     return this.loadPromise;
   }
 
+  // Drops the cached copy of one model's GGUF file (and its metadata) by URL.
+  // wllama's own "already downloaded" fast-path in CacheManager.download()
+  // reuses the model's plain file key as an existence check whenever the
+  // (near-universally unsupported) Cross-Origin Storage API isn't available —
+  // so a network drop mid-download leaves a truncated file that the NEXT
+  // attempt mistakes for "already cached" and never re-fetches, bricking that
+  // URL until the cache entry is removed. Call this after a load failure so
+  // the following attempt (Retry, or just reopening the chat) is forced to
+  // download for real.
+  async clearModelCache(url) {
+    try {
+      await this.wllama.cacheManager?.delete(url);
+    } catch (error) {
+      console.debug("clearModelCache failed, ignoring:", error?.message);
+    }
+  }
+
   async exit() {
     if (this.loadPromise) {
       await this.loadPromise;

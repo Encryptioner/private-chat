@@ -4,10 +4,13 @@
 > load can fail, and how recovery works — for the chat model **and** the separate RAG embedder. If
 > you're touching `loadModel`, the cache, or the error UI, start here.
 
-**TL;DR** — A failed or interrupted download **never poisons the next visit**. Reloading the page is
-always a clean slate: wllama validates cached files by size, the success-only `localStorage` flag is
-never set by a failure, and all React load-state is in-memory. Transient failures (network) get a
-Retry button; permanent ones (model too large / bad file) point you at the model picker.
+**TL;DR** — A failed or interrupted download must **not** poison the next visit. React load-state is
+in-memory and the success-only `localStorage` flag is never set by a failure, so those two layers
+always start clean. The **cache layer doesn't, on its own**: wllama's own "already downloaded"
+fast-path can mistake a truncated file for a complete one (see [Q1](#q1--does-an-earlier-failed--interrupted-load-create-problems-on-the-next-visit)),
+so `loadModel()`'s catch block explicitly deletes the failed model's cache entry
+(`WllamaWrapper.clearModelCache`) before ever showing Retry. Transient failures (network) get a Retry
+button; permanent ones (model too large / bad file) point you at the model picker.
 
 ---
 
@@ -79,6 +82,9 @@ If `loadModel()` throws, the model is **not** left in a half-loaded state. The c
 ```js
 } catch (err) {
   // ...
+  if (source !== "local_file" && describeLoadError(err).category !== "too_large") {
+    await wllama.clearModelCache(customModelUrl || preset.url); // drop the poisoned cache entry
+  }
   if (source === "custom_url") {            // bad site-owner modelUrl → fall back
     modelUrlRef.current = null;
     setCustomModelLoadFailed(true);
@@ -89,10 +95,15 @@ If `loadModel()` throws, the model is **not** left in a half-loaded state. The c
 }
 ```
 
-This is the **root-cause fix** for an old bug: previously `isLoading` stayed `true` forever on any
-failure (interrupted download, nav-away, OOM), which made `isBusy` permanently `true` and locked the
-New Chat button + model switcher with no way out. Resetting `isLoading` + surfacing `loadError` lets
-the UI offer Retry instead of spinning forever.
+Resetting `isLoading` + surfacing `loadError` is the **root-cause fix** for an older bug: previously
+`isLoading` stayed `true` forever on any failure (interrupted download, nav-away, OOM), which made
+`isBusy` permanently `true` and locked the New Chat button + model switcher with no way out.
+
+`clearModelCache()` is a **second, separate root-cause fix**: without it, an interrupted download can
+leave the cache in a state where Retry (and even a full page reload) re-fails identically forever,
+*regardless of how good the network is on the next attempt* — see [Q1](#q1--does-an-earlier-failed--interrupted-load-create-problems-on-the-next-visit).
+It's skipped for `too_large` because those bytes downloaded fine; the model just doesn't fit in this
+device's WASM memory, so wiping a good, expensive-to-redownload cache entry would help nothing.
 
 The raw `loadError` is classified by `describeLoadError()` (see [Error classification](#error-classification))
 before rendering, so the prompt matches the failure type.
@@ -115,24 +126,35 @@ there's nothing to get stuck. That's what makes reload-always-works a free prope
 
 ## Q1 — Does an earlier failed / interrupted load create problems on the next visit?
 
-**No. Three layers all self-heal.**
+**The `localStorage` flag and React state always self-heal. The cache layer does NOT, on its own —
+this app works around it.**
 
-1. **wllama validates every cached file on load** by comparing its real byte size against the size
-   recorded in its metadata (`Model.validate()`). An interrupted download leaves a short/partial file
-   → size mismatch → the file is marked **invalid** and skipped. `getModelOrDownload()` then
-   re-downloads it from scratch (the partial is truncated, not resumed). *(wllama 3.5.1:
-   `Model.validate()` at `index.js:2286`, `getModelOrDownload` at `:2483`, OPFS worker `truncate(0)`
-   on re-open.)*
-2. **The `localStorage` flag is success-only.** A failed download never writes
+1. **The `localStorage` flag is success-only.** A failed download never writes
    `pc_models_loaded_v1`, so the ask-first "Download model" prompt re-appears on the next visit
    instead of falsely assuming the model is cached.
-3. **React state is in-memory.** `isLoading` / `loadError` reset on every reload.
+2. **React state is in-memory.** `isLoading` / `loadError` reset on every reload. `WllamaWrapper.loadPromise`
+   is always cleared in a `finally` block — no stuck in-flight promise survives across the wrapper boundary.
+3. **wllama's cache validation catches size mismatches on *load*, but its own download path can't
+   always get past them.** `Model.validate()` compares a cached file's real byte size against the size
+   in its metadata, and a short/partial file correctly fails that check. The bug: **before**
+   `validate()` ever runs, `CacheManager.download()` has an "already downloaded, skip the fetch"
+   fast-path (`getSize(fileKey, hint)` in wllama 3.5.1's `cache-manager.ts`) meant for its Cross-Origin
+   Storage (COS) backend. COS is an experimental API essentially no browser implements yet, so that
+   check silently falls back to "does *any* file already exist at this model's plain OPFS key" — which
+   is true for a truncated file left by a network drop. On the attempt right after a drop, this
+   fast-path writes metadata claiming the *full* remote size against those truncated bytes and returns
+   **without downloading anything**. From then on, `validate()` correctly flags the file invalid on
+   load, `refresh()` calls `download()` again to fix it — and hits the exact same fast-path again
+   (now even faster, since metadata already exists), which returns immediately without re-fetching.
+   **The entry is bricked**: every future Retry or full page reload re-fails identically, no matter
+   how good the network is by then, because the library never has a code path that clears the stale
+   file itself.
 
-Plus `WllamaWrapper.loadPromise` is always cleared in a `finally` block — no stuck in-flight promise
-survives across the wrapper boundary.
-
-**Conclusion:** network drop, tab close, laptop sleep, CORS error, quota error — none of it corrupts
-anything. Reload (or Retry) re-attempts cleanly.
+**The fix:** `loadModel()`'s catch block calls `wllama.clearModelCache(url)`
+(`WllamaWrapper.clearModelCache`, `src/lib/wllama.js`) — `cacheManager.delete(url)` on the raw wllama
+instance — for any URL-sourced failure that isn't `too_large`. That removes the poisoned file *and*
+its metadata, so the next attempt (Retry click, or just reopening the chat) can't hit the fast-path
+and is forced into a real, fresh download.
 
 ### What this does NOT do
 
@@ -144,6 +166,10 @@ anything. Reload (or Retry) re-attempts cleanly.
   inactivity window). After eviction the model re-downloads next visit. The `localStorage` flag
   survives eviction, so on Safari that re-download happens *silently* (no ask-first prompt) —
   acceptable, but worth knowing.
+- **`clearModelCache` is a targeted workaround, not a patch to wllama.** It only runs from
+  `loadModel()`'s own catch block, so it only protects this app's load path. If a future wllama
+  version changes `cache-manager.ts`'s fast-path behavior, re-check whether this workaround is still
+  needed.
 
 ---
 
@@ -170,13 +196,13 @@ switch model. This closes the old gap where OOM / bad-file failures looped on Re
 
 | Failure                                         | Reload? | Retry button? | Classified as | Notes                                                              |
 |------------------------------------------------|:-------:|:-------------:|:-------------:|--------------------------------------------------------------------|
-| Network drop mid-download                       | ✅ clean | ✅             | `network`     | full re-fetch (no resume)                                          |
-| Tab closed / laptop sleep mid-download          | ✅ clean | n/a           | `network`     | partial detected invalid → re-downloaded                           |
+| Network drop mid-download                       | ✅ (1 retry) | ✅         | `network`     | `clearModelCache` drops the truncated file; full re-fetch (no resume) |
+| Tab closed / laptop sleep mid-download          | ✅ (1 retry) | n/a       | `network`/`invalid` | no catch ran to clear it before close; the *next* load attempt either re-fails fetching or loads the truncated blob into wllama and fails parsing it — either way that attempt's catch clears it, so the one after works |
 | Custom `modelUrl` bad / CORS / 404              | ✅ clean | ✅ (auto)      | —             | auto-falls back to built-in default + reveals picker               |
 | Preset URL 404 (HuggingFace outage)             | ✅ clean | ⚠️ loops       | `network`     | switch model in dropdown                                           |
 | OPFS quota exceeded                             | ✅ clean | ✅             | `storage`     | truncate frees the partial; fails again only if disk truly full    |
 | **OOM / model too big for WASM memory**         | ✅ clean | ❌ (loop)      | `too_large`   | **pick a smaller model** — Retry won't help                        |
-| Invalid / corrupt / non-GGUF file               | ✅ clean | ❌ (loop)      | `invalid`     | pick another model                                                 |
+| Invalid / corrupt / non-GGUF file               | ✅ clean | ✅ (1 retry) if it's actually the wllama cache-fastpath bug above; ❌ (loop) if the *remote* file itself is bad | `invalid` | `clearModelCache` clears a locally-corrupted entry; a genuinely bad remote file still needs **pick another model** |
 | OPFS evicted (mobile Safari inactivity)         | ✅ redownload | n/a       | `network`     | `localStorage` flag may be stale → silent re-fetch                |
 | Incognito / no storage available                | n/a     | n/a           | `network`     | nothing persists; always fresh                                     |
 | WebAssembly module already initialized (iframe) | ✅ clean | n/a           | —             | `getWllamaInstance()` builds a mock; chat disabled in that context |
@@ -240,11 +266,15 @@ storage, so all of the above is best-effort.
    `loadModelFromUrl(url, options)`.
 4. **On success** — `markModelLoaded(modelKey)` (success-only flag, local files excluded), then
    `isReady: true`.
-5. **On failure** — custom URL auto-retries as preset; otherwise `isLoading: false, loadError: err`.
+5. **On failure** — for any URL-sourced source that isn't `too_large`, `wllama.clearModelCache(url)`
+   drops the (possibly poisoned) cache entry first; custom URL then auto-retries as preset; otherwise
+   `isLoading: false, loadError: err`.
 
 `src/lib/wllama.js` → `WllamaWrapper` serializes loads: an in-progress `loadPromise` is awaited
 rather than started twice, and it's always cleared in `finally`. The "already initialized" wllama
-error (iframe/WASM-module-conflict path) is tolerated instead of thrown.
+error (iframe/WASM-module-conflict path) is tolerated instead of thrown. `clearModelCache(url)` calls
+`this.wllama.cacheManager.delete(url)` on the raw wllama instance, swallowing any error (best-effort;
+the following load attempt is the real fallback if the delete itself fails).
 
 ---
 
@@ -269,6 +299,9 @@ error (iframe/WASM-module-conflict path) is tolerated instead of thrown.
 - **`src/lib/__tests__/modelLoadError.test.js`** — `describeLoadError`: each category, fallback to
   `network`, null/undefined/string safety, always returns renderable strings.
 - **`src/lib/__tests__/network.test.js`** — the ask-first gate's `isGoodNetwork()` heuristics.
+- **`src/lib/__tests__/wllamaClearModelCache.test.js`** — `WllamaWrapper.clearModelCache`: deletes the
+  failed model's cache entry by URL, never throws (rejecting `cacheManager.delete`, or no
+  `cacheManager` at all on the iframe-conflict mock wllama).
 
 Run with `pnpm test`. Simulate a failed download locally by pointing a preset URL at a non-existent
 file or throttling the network in DevTools; the `loadError` prompt + Retry should appear and a reload

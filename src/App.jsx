@@ -224,6 +224,15 @@ function App() {
         name: "error_occurred",
         params: { category: "model", action: "load", error: sanitizeError(err) },
       });
+      // Root-cause fix: an interrupted download can leave wllama's cache
+      // believing a truncated file is complete (see clearModelCache), which
+      // makes every future attempt re-fail identically even on a good
+      // connection. Drop it so the next attempt (Retry, or reopening the
+      // chat) re-downloads for real. Skip "too_large": those bytes downloaded
+      // fine, the model just doesn't fit in this device's WASM memory.
+      if (source !== "local_file" && describeLoadError(err).category !== "too_large") {
+        await wllama.clearModelCache(customModelUrl || preset.url);
+      }
       if (source === "custom_url") {
         // Site-owner modelUrl not downloadable (bad URL, CORS, 404, …) → fall back
         // to the built-in default AND reveal the standard picker/uploader so the
