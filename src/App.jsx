@@ -664,7 +664,12 @@ function App() {
     let systemContent = customSystemMessage;
     let sourcesVersion = null;
     if (isEmbedded) {
-      setIsIndexing(true);
+      // buildGroundedContext only does real (re)embed work when there's no index
+      // yet — every later message is a cheap ~33ms query embed against the
+      // cached index. Only show "Indexing this page…" for the former, so the
+      // badge doesn't imply a fresh re-index on every message.
+      const needsIndexing = !hasIndex();
+      if (needsIndexing) setIsIndexing(true);
       try {
         const grounded = await buildGroundedContext(
           currentPrompt.trim(),
@@ -680,7 +685,7 @@ function App() {
       } catch (error) {
         console.debug("[RAG] grounding failed, falling back to context-less chat:", error?.message);
       } finally {
-        setIsIndexing(false);
+        if (needsIndexing) setIsIndexing(false);
       }
     }
 

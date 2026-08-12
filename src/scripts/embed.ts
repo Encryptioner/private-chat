@@ -46,7 +46,7 @@ type ChatSection = { anchor?: string; title?: string; url?: string; text: string
 // Host-side scraper (DOM-pure) — bundled into embed.js. Runs in the HOST context
 // where the host DOM is always same-origin to itself, so scraping works on ANY
 // site (unlike the iframe, which can't read a cross-origin parent).
-import { scrapeCurrentPage } from '../lib/scraper.js';
+import { scrapeCurrentPage, hashText } from '../lib/scraper.js';
 import { EMBED_SCRIPT_ID, EMBED_DIV_ID, EMBED_FLOATING_ID, STORAGE_KEYS, storageKey, hostSiteKey } from '../lib/constants.js';
 import { isGoodNetwork } from '../lib/network.js';
 
@@ -290,8 +290,15 @@ class EmbedScript {
   // postMessage works cross-origin, so this is what makes the widget usable on
   // any site (the iframe itself can't scrape a cross-origin parent).
   private _attachSectionBridge(iframe: HTMLIFrameElement, targetOrigin: string): void {
+    let lastSentHash: string | null = null;
     const send = async () => {
       const sections = await this._computeSections();
+      // The MutationObserver below fires on ANY host DOM change (ads, widgets,
+      // unrelated churn), not just real content updates — skip the round trip
+      // (and the iframe's re-embed check) when scraped text hasn't changed.
+      const hash = hashText(sections.map((s) => s.text || '').join(' '));
+      if (hash === lastSentHash) return;
+      lastSentHash = hash;
       try {
         iframe.contentWindow?.postMessage({ type: 'private-chat:sections', sections }, targetOrigin);
       } catch (error) {
