@@ -18,9 +18,9 @@ export const GOOGLE_ANALYTICS_CONFIG = {
   measurementId: "G-FZEG4Y3SPYE",
 
   /**
-   * Set to true to enable tracking. Kept false until intentionally activated.
+   * Privacy-first events only (message content is never sent).
    */
-  enabled: false,
+  enabled: true,
 
   /**
    * Set to true to also track in the local dev server.

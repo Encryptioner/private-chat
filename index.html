@@ -43,6 +43,16 @@
       to { transform: rotate(360deg); }
     }
   </style>
+
+    <!-- Google Analytics 4 — Encryptioner Websites property.
+         Loader lives here; typed events come from src/lib/googleAnalytics.ts. -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-FZEG4Y3SPYE"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-FZEG4Y3SPYE');
+    </script>
   </head>
   <body>
     <div id="root"></div>
