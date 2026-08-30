@@ -15,7 +15,7 @@
 const isProduction = import.meta.env.MODE === "production";
 
 export const GOOGLE_ANALYTICS_CONFIG = {
-  measurementId: "G-K8S4D3R1C6",
+  measurementId: "G-FZEG4Y3SPYE",
 
   /**
    * Set to true to enable tracking. Kept false until intentionally activated.
